@@ -92,7 +92,7 @@ jobs:
           cat android/build.gradle
           
       - name: Build signed Android APK
-        uses: capawesome-team/capacitor-android-build-action@v1
+        uses: capawesome-team/capacitor-android-release-action@v1
         with:
           android-path: ./android
           keystore-path: ${{ env.KEYSTORE_FILE }}
