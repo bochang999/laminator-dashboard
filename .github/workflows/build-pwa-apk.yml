@@ -62,31 +62,72 @@ jobs:
         run: |
           npx cap copy android
           
-      - name: Build signed APK
-        uses: Narottam04/action-capacitor-android@v1.0.0
-        with:
-          # 新しいアクションのパラメータに、私たちのSecretsを割り当て
-          RELEASE_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 }}
-          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      - name: Setup Android Keystore
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "📱 Using production keystore from GitHub Secrets"
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+            echo "✅ Production keystore created"
+          else
+            echo "🔧 Creating debug keystore for development"
+            cd android
+            keytool -genkey -v -keystore app/debug.keystore \
+              -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass android -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "✅ Debug keystore created for development"
+          fi
+
+      - name: Configure Build for Signing
+        run: |
+          cd android
+          echo "🔧 Adding signing configuration to build.gradle..."
+          cat >> app/build.gradle << 'EOF'
           
-      - name: Copy and rename APK
+          android {
+              signingConfigs {
+                  release {
+                      storeFile file('${{ secrets.KEYSTORE_BASE64 && 'release.keystore' || 'debug.keystore' }}')
+                      storePassword '${{ secrets.KEYSTORE_PASSWORD || 'android' }}'
+                      keyAlias '${{ secrets.KEY_ALIAS || 'androiddebugkey' }}'
+                      keyPassword '${{ secrets.KEY_PASSWORD || 'android' }}'
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                      minifyEnabled false
+                      proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+                  }
+              }
+          }
+          EOF
+          echo "📄 Updated build.gradle content:"
+          cat app/build.gradle
+
+      - name: Build Android APK
+        run: |
+          cd android
+          echo "🏗️ Starting Android APK build..."
+          ./gradlew clean
+          ./gradlew assembleRelease --stacktrace
+          echo "✅ APK build completed"
+
+      - name: Verify and Copy APK
         run: |
           echo "🔍 Searching for generated APK files..."
-          find android -name "*.apk" -type f -ls
-          
-          # capacitor-community action generates APK in android/app/build/outputs/apk/release/
-          APK_FILE=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
-          if [ -n "$APK_FILE" ]; then
+          find android -name "*.apk" -type f
+          APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          if [ -n "$APK_PATH" ]; then
             TIMESTAMP=$(date +%Y%m%d-%H%M%S)
             NEW_NAME="laminator-dashboard-v2.16-${TIMESTAMP}.apk"
-            echo "✅ Found APK: $APK_FILE"
+            echo "✅ Found APK: $APK_PATH"
             echo "📦 Copying to: $NEW_NAME"
-            cp "$APK_FILE" "$NEW_NAME"
+            cp "$APK_PATH" "$NEW_NAME"
             echo "APK_FILENAME=$NEW_NAME" >> $GITHUB_ENV
+            echo "🎉 APK successfully created and copied"
           else
-            echo "❌ No APK found in expected location"
+            echo "❌ APK not found in expected location"
             echo "📂 Full directory listing:"
             find android -type f -name "*.apk"
             exit 1
