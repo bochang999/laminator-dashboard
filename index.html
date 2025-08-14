@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ラミオペ・ダッシュボード</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2C3E50">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+</head>
+<body>
+    <div class="app-container">
+        <!-- ヘッダー -->
+        <header class="app-header">
+            <div class="header-title">
+                <h1><span id="log-page-trigger-icon" style="cursor: pointer;">🎛️</span> ラミオペ・ダッシュボード</h1>
+                <div class="current-time" id="currentTime"></div>
+            </div>
+            <div class="header-actions">
+                <button class="header-btn" onclick="dashboard.showSettings()">⚙️ 設定</button>
+            </div>
+        </header>
+
+        <!-- メイン統合ダッシュボード -->
+        <main id="main-content" class="main-dashboard">
+            
+            <!-- 時間表示エリア（3カラム構成） -->
+            <section class="time-display-grid card">
+                <div class="time-column">
+                    <div class="time-label">開始時刻</div>
+                    <div class="time-value editable" id="workStartTime" onclick="dashboard.editStartTime()">--:--</div>
+                    <div class="time-action">手動設定可</div>
+                </div>
+                
+                <div class="time-column primary">
+                    <div class="time-label">最終終了予定</div>
+                    <div class="time-value" id="finalFinishTime">--:--</div>
+                    <div class="time-status" id="finishStatus">業務開始前</div>
+                </div>
+                
+                <div class="time-column">
+                    <div class="time-label">本日の目標</div>
+                    <div class="time-value editable" id="targetEndTime" onclick="dashboard.editTargetTime()">17:00</div>
+                    <div class="time-action">定時/残業切替</div>
+                </div>
+            </section>
+
+            <!-- 操作エリア -->
+            <section class="operation-area">
+                
+                <!-- 時間調整ボタン -->
+                <div class="time-controls">
+                    <h4>時間管理</h4>
+                    <div class="time-btn-grid">
+                        <button class="time-btn" onclick="dashboard.startWork()">業務開始</button>
+                        <button class="time-btn" onclick="dashboard.addLunchBreak()">昼休み追加</button>
+                        <button class="time-btn" onclick="dashboard.addManualTime()">手動で時間追加</button>
+                        <button class="time-btn" onclick="dashboard.addExchangeTime()">交換時間追加</button>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- ジョブリスト表示エリア -->
+            <section class="job-list-area">
+                <div class="job-list-header">
+                    <h3>ジョブリスト</h3>
+                    <button class="report-btn" onclick="dashboard.showReport()">📊 本日のレポート</button>
+                </div>
+                
+                <div id="jobListContainer" class="job-list-container">
+                    <div class="empty-state">
+                        まだジョブが登録されていません<br>
+                        上記のフォームからジョブを追加してください
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- 設定モーダル -->
+        <div id="settingsModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>⚙️ ユーザー設定</h3>
+                    <button class="modal-close" onclick="dashboard.hideSettings()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-section">
+                        <h4>勤務時間設定</h4>
+                        
+                        <div class="form-group">
+                            <label>始業時刻</label>
+                            <input type="time" id="settingWorkStart" value="08:30">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>定時終業時刻</label>
+                            <input type="time" id="settingWorkEnd" value="17:00">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>残業終業時刻</label>
+                            <input type="time" id="settingOvertimeEnd" value="18:00">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>昼休み時間（分）</label>
+                            <input type="number" id="settingLunchBreak" min="0" step="15" value="60">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>片付け時間（分）</label>
+                            <input type="number" id="settingCleanupTime" min="0" step="5" value="15">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>異種フィルム交換時間（分）</label>
+                            <input type="number" id="settingDiffFilmChange" min="0" step="5" value="15">
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h4>データ管理</h4>
+                        <div class="form-group">
+                            <button class="btn btn-primary" id="backup-data-btn" onclick="dashboard.backupData()">📤 進捗をバックアップ</button>
+                            <button class="btn btn-secondary" id="restore-data-btn" onclick="dashboard.triggerRestore()">📥 バックアップから復元</button>
+                            <input type="file" id="restore-file-input" accept=".json" style="display: none;" onchange="dashboard.restoreData(event)">
+                        </div>
+                    </div>
+                    
+                    <div class="settings-actions">
+                        <button class="btn btn-primary" onclick="dashboard.saveSettings()">設定を保存</button>
+                        <button class="btn btn-secondary" onclick="dashboard.resetSettings()">デフォルトに戻す</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- レポートモーダル -->
+        <div id="reportModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>📊 本日の作業レポート</h3>
+                    <button class="modal-close" onclick="dashboard.hideReport()">&times;</button>
+                </div>
+                <div class="modal-body" id="reportContent"></div>
+            </div>
+        </div>
+
+        <!-- 確認ダイアログ -->
+        <div id="confirmDialog" class="modal">
+            <div class="modal-content modal-sm">
+                <div class="modal-body">
+                    <p id="confirmMessage"></p>
+                    <div class="modal-actions">
+                        <button class="btn btn-danger" id="confirmYes">削除</button>
+                        <button class="btn btn-secondary" id="confirmNo">キャンセル</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    
+    <footer style="text-align: center; padding: 10px; border-top: 1px solid #ccc; font-size: 12px; color: #888;">
+        Ver. 2.16
+    </footer>
+
+    <script src="script.js"></script>
+    <!-- テストスクリプト（開発時のみ有効化） -->
+    <!-- <script src="test-v3.js"></script> -->
+</body>
+</html>

@@ -1,0 +1,1096 @@
+/* ラミオペ・ダッシュボード Ver.3.0 - 統合ダッシュボード仕様 */
+
+/* Reset & Variables */
+
+/* Ver. 2.16追加: フィルムボタングループスタイル */
+.film-button-group {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.film-add-job-btn, .film-add-film-btn {
+    flex: 1;
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: none;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.film-add-job-btn {
+    background-color: var(--success-color);
+}
+
+.film-add-job-btn:hover {
+    background-color: #239B56;
+}
+
+.film-add-film-btn {
+    background-color: var(--accent-color);
+}
+
+.film-add-film-btn:hover {
+    background-color: #2E86C1;
+}
+:root {
+    --primary-color: #2C3E50;
+    --secondary-color: #34495E;
+    --accent-color: #3498DB;
+    --success-color: #27AE60;
+    --warning-color: #F39C12;
+    --danger-color: #E74C3C;
+    --light-gray: #F8F9FA;
+    --medium-gray: #E9ECEF;
+    --dark-gray: #6C757D;
+    --text-color: #2C3E50;
+    --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    --border-radius: 8px;
+    --header-height: 70px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-color);
+}
+
+/* App Container */
+.app-container {
+    max-width: 480px;
+    margin: 0 auto;
+    background: #fff;
+    min-height: 100vh;
+    box-shadow: 0 0 20px rgba(0,0,0,0.15);
+    position: relative;
+}
+
+/* Header */
+.app-header {
+    background: var(--primary-color);
+    color: white;
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--card-shadow);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    height: var(--header-height);
+}
+
+.header-title h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.current-time {
+    font-size: 12px;
+    opacity: 0.9;
+    font-family: 'Courier New', monospace;
+}
+
+.header-btn {
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.header-btn:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+/* Main Dashboard */
+.main-dashboard {
+    padding: 16px;
+}
+
+/* 最終終了予定時刻 */
+.finish-time-display {
+    margin-bottom: 20px;
+}
+
+.finish-time-card {
+    background: linear-gradient(135deg, var(--success-color) 0%, #2ECC71 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: var(--card-shadow);
+}
+
+.finish-label {
+    font-size: 12px;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.finish-time {
+    font-size: 32px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 8px;
+}
+
+.finish-status {
+    font-size: 14px;
+    background: rgba(255,255,255,0.2);
+    padding: 6px 12px;
+    border-radius: 16px;
+    display: inline-block;
+}
+
+.finish-status.warning {
+    background: var(--warning-color);
+}
+
+.finish-status.danger {
+    background: var(--danger-color);
+}
+
+/* Time Display Grid */
+.time-display-grid {
+    background: white;
+    border: 2px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--card-shadow);
+    display: grid;
+    grid-template-columns: 1fr 1.5fr 1fr;
+    gap: 12px;
+}
+
+/* Operation Area */
+.operation-area {
+    margin-bottom: 24px;
+}
+
+/* Job Input Section */
+.job-input-section {
+    background: white;
+    border: 2px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--card-shadow);
+}
+
+.job-input-section h3 {
+    color: var(--primary-color);
+    font-size: 16px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid var(--accent-color);
+    padding-bottom: 8px;
+}
+
+.job-input-section h4 {
+    color: var(--secondary-color);
+    font-size: 14px;
+    margin: 16px 0 12px 0;
+}
+
+/* Input Mode Selector */
+.input-mode-selector {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    background: var(--light-gray);
+    padding: 12px;
+    border-radius: var(--border-radius);
+}
+
+.radio-option {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.radio-option input[type="radio"] {
+    margin-right: 8px;
+    transform: scale(1.2);
+}
+
+/* Input Modes */
+.input-mode {
+    display: none;
+    margin-bottom: 20px;
+}
+
+.input-mode.active {
+    display: block;
+}
+
+/* Form Elements */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--secondary-color);
+    margin-bottom: 6px;
+}
+
+.form-group input {
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 16px;
+    font-size: 16px;
+    border: 2px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    background: white;
+    transition: border-color 0.2s ease;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.form-group input::placeholder {
+    color: var(--dark-gray);
+}
+
+/* Buttons */
+.btn {
+    padding: 12px 20px;
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    min-height: 36px;
+    font-size: 12px;
+}
+
+.btn-primary {
+    background: var(--accent-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #2980B9;
+}
+
+.btn-secondary {
+    background: var(--medium-gray);
+    color: var(--text-color);
+}
+
+.btn-secondary:hover {
+    background: #DEE2E6;
+}
+
+.btn-success {
+    background: var(--success-color);
+    color: white;
+}
+
+.btn-success:hover {
+    background: #229954;
+}
+
+.btn-warning {
+    background: var(--warning-color);
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #E67E22;
+}
+
+.btn-danger {
+    background: var(--danger-color);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #C0392B;
+}
+
+/* Job Add Buttons */
+.job-add-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.btn-current-film {
+    background: var(--success-color);
+    color: white;
+}
+
+.btn-current-film:hover {
+    background: #229954;
+}
+
+.btn-new-film {
+    background: var(--warning-color);
+    color: white;
+}
+
+.btn-new-film:hover {
+    background: #E67E22;
+}
+
+/* Time Controls */
+.time-controls {
+    background: white;
+    border: 2px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--card-shadow);
+}
+
+.time-controls h4 {
+    color: var(--primary-color);
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.time-btn-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.time-btn {
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 12px 8px;
+    border-radius: var(--border-radius);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 44px;
+}
+
+.time-btn:hover {
+    background: #2980B9;
+}
+
+/* Film Status */
+.film-status {
+    background: white;
+    border: 2px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--card-shadow);
+}
+
+.film-status h4 {
+    color: var(--primary-color);
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.current-film-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.film-remaining {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--success-color);
+}
+
+/* Job List Area */
+.job-list-area {
+    margin-bottom: 24px;
+}
+
+.job-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.job-list-header h3 {
+    color: var(--primary-color);
+    font-size: 16px;
+}
+
+.report-btn {
+    background: #9B59B6;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: var(--border-radius);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.report-btn:hover {
+    background: #8E44AD;
+}
+
+/* Job List Container */
+.job-list-container {
+    min-height: 120px;
+}
+
+.empty-state {
+    background: var(--light-gray);
+    padding: 40px 20px;
+    border-radius: var(--border-radius);
+    text-align: center;
+    color: var(--dark-gray);
+    font-style: italic;
+    border: 2px dashed var(--medium-gray);
+}
+
+/* Film Session */
+.film-session {
+    margin-bottom: 16px;
+    border: 2px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+}
+
+/* Film Add Button */
+.film-add-btn {
+    margin-top: 8px;
+    margin-left: 16px;
+}
+
+/* New Film Button Container */
+.new-film-button-container {
+    text-align: center;
+    padding: 20px;
+    margin-top: 16px;
+}
+
+.new-film-btn {
+    width: 100%;
+    max-width: 400px;
+    padding: 16px 24px;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.session-header {
+    background: var(--secondary-color);
+    color: white;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+}
+
+.session-title {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.session-status {
+    font-size: 12px;
+    background: rgba(255,255,255,0.2);
+    padding: 4px 8px;
+    border-radius: 12px;
+}
+
+.session-jobs {
+    background: white;
+}
+
+.session-jobs.collapsed {
+    display: none;
+}
+
+/* Job Item */
+.job-item {
+    padding: 16px;
+    border-bottom: 1px solid var(--medium-gray);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.job-item:hover {
+    background-color: #F8F9FA;
+}
+
+.job-item:last-child {
+    border-bottom: none;
+}
+
+.job-item.completed {
+    background: #F8F9FA;
+    opacity: 0.8;
+}
+
+.job-info {
+    flex: 1;
+}
+
+.job-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 4px;
+}
+
+.job-details {
+    font-size: 12px;
+    color: var(--dark-gray);
+}
+
+.job-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.job-actions-left {
+    display: flex;
+    align-items: center;
+    margin-right: 12px;
+}
+
+.job-actions-right {
+    display: flex;
+    align-items: center;
+    margin-left: 12px;
+}
+
+.job-complete-btn {
+    background: var(--success-color);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.job-complete-btn:hover {
+    background: #229954;
+}
+
+.job-complete-btn:disabled {
+    background: var(--medium-gray);
+    cursor: not-allowed;
+}
+
+.job-uncomplete-btn {
+    background: var(--warning-color);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.job-uncomplete-btn:hover {
+    background: #E67E22;
+}
+
+.job-delete-btn {
+    background: #E57373;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 36px;
+}
+
+.job-delete-btn:hover {
+    background: #D32F2F;
+}
+
+.job-menu-btn {
+    background: none;
+    border: none;
+    font-size: 16px;
+    color: var(--dark-gray);
+    cursor: pointer;
+    padding: 4px;
+}
+
+.job-menu-btn:hover {
+    color: var(--primary-color);
+}
+
+/* Modals */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+    display: none;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 400px;
+    max-height: 90vh;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+.modal-sm .modal-content {
+    max-width: 300px;
+}
+
+.modal-header {
+    background: var(--light-gray);
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--medium-gray);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 16px;
+    color: var(--primary-color);
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--dark-gray);
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+    background: var(--medium-gray);
+    color: var(--primary-color);
+}
+
+.modal-body {
+    padding: 20px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+/* Calculator Specific Styles */
+.calc-description {
+    color: var(--dark-gray);
+    font-size: 14px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.preset-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.calc-result {
+    margin-top: 20px;
+    padding: 16px;
+    background: var(--light-gray);
+    border-radius: var(--border-radius);
+    text-align: center;
+    display: none;
+}
+
+.calc-result.active {
+    display: block;
+}
+
+.calc-result.success {
+    background: #D5EDDA;
+    color: #155724;
+    border: 1px solid #C3E6CB;
+}
+
+/* Responsive Design */
+@media (max-width: 360px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .job-add-buttons {
+        grid-template-columns: 1fr;
+    }
+    
+    .time-btn-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Animation */
+.fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-up {
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Loading States */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid transparent;
+    border-top: 2px solid var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Focus States for Accessibility */
+button:focus,
+input:focus {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+/* Inline Job Form Styles */
+.inline-job-form {
+    background: white;
+    border: 2px solid var(--accent-color);
+    border-radius: var(--border-radius);
+    margin: 12px 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideUp 0.3s ease-out;
+}
+
+.job-form-container {
+    padding: 20px;
+}
+
+.inline-job-form h4 {
+    color: var(--primary-color);
+    font-size: 16px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid var(--accent-color);
+    padding-bottom: 8px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--medium-gray);
+}
+
+/* Checkbox Group */
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: auto;
+    min-height: auto;
+    margin: 0;
+    transform: scale(1.2);
+}
+
+.checkbox-group label {
+    margin-bottom: 0;
+    cursor: pointer;
+    user-select: none;
+}
+
+.help-text {
+    font-size: 12px;
+    color: var(--dark-gray);
+    font-style: italic;
+}
+
+.settings-section {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--medium-gray);
+}
+
+.settings-section:last-of-type {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.settings-section h4 {
+    color: var(--primary-color);
+    font-size: 14px;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+/* Log Page Styles Ver.2.4 */
+.log-page-header {
+    background: white;
+    border: 2px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--card-shadow);
+}
+
+.log-page-controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.log-page-header h3 {
+    color: var(--primary-color);
+    font-size: 18px;
+    margin-bottom: 8px;
+}
+
+.log-info {
+    color: var(--dark-gray);
+    font-size: 14px;
+    margin: 0;
+}
+
+.log-container {
+    background: white;
+    border: 2px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    padding: 16px;
+    box-shadow: var(--card-shadow);
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.log-entry {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--medium-gray);
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
+
+.log-timestamp {
+    color: var(--dark-gray);
+    font-weight: normal;
+    flex-shrink: 0;
+}
+
+.log-level {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 10px;
+    text-align: center;
+    min-width: 45px;
+    flex-shrink: 0;
+}
+
+.log-level-log {
+    background: var(--accent-color);
+    color: white;
+}
+
+.log-level-error {
+    background: var(--danger-color);
+    color: white;
+}
+
+.log-level-warn {
+    background: var(--warning-color);
+    color: white;
+}
+
+.log-message {
+    flex: 1;
+    word-wrap: break-word;
+    color: var(--text-color);
+}
+
+.empty-log-state {
+    text-align: center;
+    color: var(--dark-gray);
+    font-style: italic;
+    padding: 40px 20px;
+}
+
+/* Ver.2.5: Film Capacity Display - Clickable UI */
+.film-capacity-display {
+    cursor: pointer;
+    color: var(--accent-color);
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    transition: all 0.2s ease;
+}
+
+.film-capacity-display:hover {
+    color: var(--primary-color);
+    background-color: rgba(52, 152, 219, 0.1);
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+/* Ver.2.5: Film Shortage Indicators */
+.film-shortage {
+    border: 2px solid var(--warning-color);
+}
+
+.film-shortage.film-critical {
+    border-color: var(--danger-color);
+}
+
+.film-capacity-display.film-low {
+    color: var(--warning-color);
+    font-weight: bold;
+}
+
+.film-capacity-display.film-critical {
+    color: var(--danger-color);
+    font-weight: bold;
+    animation: pulse-warning 1.5s infinite;
+}
+
+.film-capacity-display.film-empty {
+    color: #8B0000;
+    font-weight: bold;
+    animation: pulse-critical 1s infinite;
+    text-shadow: 1px 1px 2px rgba(139, 0, 0, 0.3);
+}
+
+@keyframes pulse-warning {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+@keyframes pulse-critical {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+/* Ver.2.6: ラジオボタンラベルの視認性修正 */
+.radio-option label {
+    color: var(--text-color) !important;
+    font-weight: 500;
+    cursor: pointer;
+    margin: 0;
+}

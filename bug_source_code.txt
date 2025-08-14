@@ -1,0 +1,2202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ラミオペ・ダッシュボード</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2C3E50">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+</head>
+<body>
+    <div class="app-container">
+        <!-- ヘッダー -->
+        <header class="app-header">
+            <div class="header-title">
+                <h1>🎛️ ラミオペ・ダッシュボード</h1>
+                <div class="current-time" id="currentTime"></div>
+            </div>
+            <div class="header-actions">
+                <button class="header-btn" onclick="dashboard.showSettings()">⚙️ 設定</button>
+            </div>
+        </header>
+
+        <!-- メイン統合ダッシュボード -->
+        <main class="main-dashboard">
+            
+            <!-- 時間表示エリア（3カラム構成） -->
+            <section class="time-display-grid card">
+                <div class="time-column">
+                    <div class="time-label">開始時刻</div>
+                    <div class="time-value editable" id="workStartTime" onclick="dashboard.editStartTime()">--:--</div>
+                    <div class="time-action">手動設定可</div>
+                </div>
+                
+                <div class="time-column primary">
+                    <div class="time-label">最終終了予定</div>
+                    <div class="time-value" id="finalFinishTime">--:--</div>
+                    <div class="time-status" id="finishStatus">業務開始前</div>
+                </div>
+                
+                <div class="time-column">
+                    <div class="time-label">本日の目標</div>
+                    <div class="time-value editable" id="targetEndTime" onclick="dashboard.editTargetTime()">17:00</div>
+                    <div class="time-action">定時/残業切替</div>
+                </div>
+            </section>
+
+            <!-- 操作エリア -->
+            <section class="operation-area">
+                
+                <!-- ジョブ追加セクション -->
+                <div class="job-input-section">
+                    <h3>新しいジョブを追加</h3>
+                    
+                    <!-- 入力モード選択 -->
+                    <div class="input-mode-selector">
+                        <label class="radio-option">
+                            <input type="radio" name="inputMode" value="direct" checked>
+                            <span>直接枚数入力</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="inputMode" value="parts">
+                            <span>部数計算</span>
+                        </label>
+                    </div>
+
+                    <!-- 直接入力モード -->
+                    <div id="directMode" class="input-mode active">
+                        <div class="form-group">
+                            <label>生産枚数</label>
+                            <input type="number" id="directSheets" min="1" step="1" placeholder="枚数">
+                        </div>
+                    </div>
+
+                    <!-- 部数計算モード -->
+                    <div id="partsMode" class="input-mode">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>指示部数</label>
+                                <input type="number" id="partsCopies" min="1" step="1" placeholder="部">
+                            </div>
+                            <div class="form-group">
+                                <label>1枚の面数</label>
+                                <input type="number" id="partsPages" min="1" step="1" placeholder="面">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>予備枚数</label>
+                            <input type="number" id="partsExtra" min="0" step="1" value="0" placeholder="予備">
+                        </div>
+                    </div>
+
+                    <!-- 加工条件 -->
+                    <div class="processing-params">
+                        <h4>加工条件</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>紙の長さ (mm)</label>
+                                <input type="number" id="paperLength" min="1" step="0.1" placeholder="長さ">
+                            </div>
+                            <div class="form-group">
+                                <label>重ね幅 (mm)</label>
+                                <input type="number" id="overlapWidth" min="0" step="0.1" placeholder="重ね幅">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>加工速度 (m/min)</label>
+                                <input type="number" id="processSpeed" min="0.1" step="0.1" placeholder="速度">
+                            </div>
+                            <div class="form-group">
+                                <label>フィルム初期残量 (m)</label>
+                                <input type="number" id="initialFilmRemaining" min="0" step="0.1" placeholder="初期残量（任意）">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ジョブ準備ボタン -->
+                    <div class="job-prepare-button">
+                        <button class="btn btn-primary" onclick="dashboard.prepareJob()">
+                            ジョブを準備
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 時間調整ボタン -->
+                <div class="time-controls">
+                    <h4>時間管理</h4>
+                    <div class="time-btn-grid">
+                        <button class="time-btn" onclick="dashboard.startWork()">業務開始</button>
+                        <button class="time-btn" onclick="dashboard.addLunchBreak()">昼休み追加</button>
+                        <button class="time-btn" onclick="dashboard.addManualTime()">手動で時間追加</button>
+                        <button class="time-btn" onclick="dashboard.addExchangeTime()">交換時間追加</button>
+                    </div>
+                </div>
+
+
+            </section>
+
+            <!-- ジョブリスト表示エリア -->
+            <section class="job-list-area">
+                <div class="job-list-header">
+                    <h3>ジョブリスト</h3>
+                    <button class="report-btn" onclick="dashboard.showReport()">📊 本日のレポート</button>
+                </div>
+                
+                <div id="jobListContainer" class="job-list-container">
+                    <div class="empty-state">
+                        まだジョブが登録されていません<br>
+                        上記のフォームからジョブを追加してください
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- 設定モーダル -->
+        <div id="settingsModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>⚙️ ユーザー設定</h3>
+                    <button class="modal-close" onclick="dashboard.hideSettings()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-section">
+                        <h4>勤務時間設定</h4>
+                        
+                        <div class="form-group">
+                            <label>始業時刻</label>
+                            <input type="time" id="settingWorkStart" value="08:30">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>定時終業時刻</label>
+                            <input type="time" id="settingWorkEnd" value="17:00">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>残業終業時刻</label>
+                            <input type="time" id="settingOvertimeEnd" value="18:00">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>昼休み時間（分）</label>
+                            <input type="number" id="settingLunchBreak" min="0" step="15" value="60">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>片付け時間（分）</label>
+                            <input type="number" id="settingCleanupTime" min="0" step="5" value="15">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>異種フィルム交換時間（分）</label>
+                            <input type="number" id="settingDiffFilmChange" min="0" step="5" value="15">
+                        </div>
+                    </div>
+                    
+                    <div class="settings-actions">
+                        <button class="btn btn-primary" onclick="dashboard.saveSettings()">設定を保存</button>
+                        <button class="btn btn-secondary" onclick="dashboard.resetSettings()">デフォルトに戻す</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- レポートモーダル -->
+        <div id="reportModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>📊 本日の作業レポート</h3>
+                    <button class="modal-close" onclick="dashboard.hideReport()">&times;</button>
+                </div>
+                <div class="modal-body" id="reportContent"></div>
+            </div>
+        </div>
+
+        <!-- 確認ダイアログ -->
+        <div id="confirmDialog" class="modal">
+            <div class="modal-content modal-sm">
+                <div class="modal-body">
+                    <p id="confirmMessage"></p>
+                    <div class="modal-actions">
+                        <button class="btn btn-danger" id="confirmYes">削除</button>
+                        <button class="btn btn-secondary" id="confirmNo">キャンセル</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="script.js"></script>
+    <!-- テストスクリプト（開発時のみ有効化） -->
+    <!-- <script src="test-v3.js"></script> -->
+</body>
+</html>/* ラミオペ・ダッシュボード Ver.3.0 - 統合ダッシュボード仕様 */
+
+/* Reset & Variables */
+:root {
+    --primary-color: #2C3E50;
+    --secondary-color: #34495E;
+    --accent-color: #3498DB;
+    --success-color: #27AE60;
+    --warning-color: #F39C12;
+    --danger-color: #E74C3C;
+    --light-gray: #F8F9FA;
+    --medium-gray: #E9ECEF;
+    --dark-gray: #6C757D;
+    --text-color: #2C3E50;
+    --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    --border-radius: 8px;
+    --header-height: 70px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-color);
+}
+
+/* App Container */
+.app-container {
+    max-width: 480px;
+    margin: 0 auto;
+    background: #fff;
+    min-height: 100vh;
+    box-shadow: 0 0 20px rgba(0,0,0,0.15);
+    position: relative;
+}
+
+/* Header */
+.app-header {
+    background: var(--primary-color);
+    color: white;
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--card-shadow);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    height: var(--header-height);
+}
+
+.header-title h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.current-time {
+    font-size: 12px;
+    opacity: 0.9;
+    font-family: 'Courier New', monospace;
+}
+
+.header-btn {
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.header-btn:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+/* Main Dashboard */
+.main-dashboard {
+    padding: 16px;
+}
+
+/* 最終終了予定時刻 */
+.finish-time-display {
+    margin-bottom: 20px;
+}
+
+.finish-time-card {
+    background: linear-gradient(135deg, var(--success-color) 0%, #2ECC71 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: var(--card-shadow);
+}
+
+.finish-label {
+    font-size: 12px;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.finish-time {
+    font-size: 32px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 8px;
+}
+
+.finish-status {
+    font-size: 14px;
+    background: rgba(255,255,255,0.2);
+    padding: 6px 12px;
+    border-radius: 16px;
+    display: inline-block;
+}
+
+.finish-status.warning {
+    background: var(--warning-color);
+}
+
+.finish-status.danger {
+    background: var(--danger-color);
+}
+
+/* Time Display Grid */
+.time-display-grid {
+    background: white;
+    border: 2px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--card-shadow);
+    display: grid;
+    grid-template-columns: 1fr 1.5fr 1fr;
+    gap: 12px;
+}
+
+/* Operation Area */
+.operation-area {
+    margin-bottom: 24px;
+}
+
+/* Job Input Section */
+.job-input-section {
+    background: white;
+    border: 2px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--card-shadow);
+}
+
+.job-input-section h3 {
+    color: var(--primary-color);
+    font-size: 16px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid var(--accent-color);
+    padding-bottom: 8px;
+}
+
+.job-input-section h4 {
+    color: var(--secondary-color);
+    font-size: 14px;
+    margin: 16px 0 12px 0;
+}
+
+/* Input Mode Selector */
+.input-mode-selector {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    background: var(--light-gray);
+    padding: 12px;
+    border-radius: var(--border-radius);
+}
+
+.radio-option {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.radio-option input[type="radio"] {
+    margin-right: 8px;
+    transform: scale(1.2);
+}
+
+/* Input Modes */
+.input-mode {
+    display: none;
+    margin-bottom: 20px;
+}
+
+.input-mode.active {
+    display: block;
+}
+
+/* Form Elements */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--secondary-color);
+    margin-bottom: 6px;
+}
+
+.form-group input {
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 16px;
+    font-size: 16px;
+    border: 2px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    background: white;
+    transition: border-color 0.2s ease;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.form-group input::placeholder {
+    color: var(--dark-gray);
+}
+
+/* Buttons */
+.btn {
+    padding: 12px 20px;
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    min-height: 36px;
+    font-size: 12px;
+}
+
+.btn-primary {
+    background: var(--accent-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #2980B9;
+}
+
+.btn-secondary {
+    background: var(--medium-gray);
+    color: var(--text-color);
+}
+
+.btn-secondary:hover {
+    background: #DEE2E6;
+}
+
+.btn-success {
+    background: var(--success-color);
+    color: white;
+}
+
+.btn-success:hover {
+    background: #229954;
+}
+
+.btn-warning {
+    background: var(--warning-color);
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #E67E22;
+}
+
+.btn-danger {
+    background: var(--danger-color);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #C0392B;
+}
+
+/* Job Add Buttons */
+.job-add-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.btn-current-film {
+    background: var(--success-color);
+    color: white;
+}
+
+.btn-current-film:hover {
+    background: #229954;
+}
+
+.btn-new-film {
+    background: var(--warning-color);
+    color: white;
+}
+
+.btn-new-film:hover {
+    background: #E67E22;
+}
+
+/* Time Controls */
+.time-controls {
+    background: white;
+    border: 2px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--card-shadow);
+}
+
+.time-controls h4 {
+    color: var(--primary-color);
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.time-btn-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.time-btn {
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 12px 8px;
+    border-radius: var(--border-radius);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 44px;
+}
+
+.time-btn:hover {
+    background: #2980B9;
+}
+
+/* Film Status */
+.film-status {
+    background: white;
+    border: 2px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--card-shadow);
+}
+
+.film-status h4 {
+    color: var(--primary-color);
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.current-film-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.film-remaining {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--success-color);
+}
+
+/* Job List Area */
+.job-list-area {
+    margin-bottom: 24px;
+}
+
+.job-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.job-list-header h3 {
+    color: var(--primary-color);
+    font-size: 16px;
+}
+
+.report-btn {
+    background: #9B59B6;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: var(--border-radius);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.report-btn:hover {
+    background: #8E44AD;
+}
+
+/* Job List Container */
+.job-list-container {
+    min-height: 120px;
+}
+
+.empty-state {
+    background: var(--light-gray);
+    padding: 40px 20px;
+    border-radius: var(--border-radius);
+    text-align: center;
+    color: var(--dark-gray);
+    font-style: italic;
+    border: 2px dashed var(--medium-gray);
+}
+
+/* Film Session */
+.film-session {
+    margin-bottom: 16px;
+    border: 2px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+}
+
+/* Film Add Button */
+.film-add-btn {
+    margin-top: 8px;
+    margin-left: 16px;
+}
+
+/* New Film Button Container */
+.new-film-button-container {
+    text-align: center;
+    padding: 20px;
+    margin-top: 16px;
+}
+
+.new-film-btn {
+    width: 100%;
+    max-width: 400px;
+    padding: 16px 24px;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.session-header {
+    background: var(--secondary-color);
+    color: white;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+}
+
+.session-title {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.session-status {
+    font-size: 12px;
+    background: rgba(255,255,255,0.2);
+    padding: 4px 8px;
+    border-radius: 12px;
+}
+
+.session-jobs {
+    background: white;
+}
+
+.session-jobs.collapsed {
+    display: none;
+}
+
+/* Job Item */
+.job-item {
+    padding: 16px;
+    border-bottom: 1px solid var(--medium-gray);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.job-item:hover {
+    background-color: #F8F9FA;
+}
+
+.job-item:last-child {
+    border-bottom: none;
+}
+
+.job-item.completed {
+    background: #F8F9FA;
+    opacity: 0.8;
+}
+
+.job-info {
+    flex: 1;
+}
+
+.job-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 4px;
+}
+
+.job-details {
+    font-size: 12px;
+    color: var(--dark-gray);
+}
+
+.job-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.job-actions-left {
+    display: flex;
+    align-items: center;
+    margin-right: 12px;
+}
+
+.job-actions-right {
+    display: flex;
+    align-items: center;
+    margin-left: 12px;
+}
+
+.job-complete-btn {
+    background: var(--success-color);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.job-complete-btn:hover {
+    background: #229954;
+}
+
+.job-complete-btn:disabled {
+    background: var(--medium-gray);
+    cursor: not-allowed;
+}
+
+.job-uncomplete-btn {
+    background: var(--warning-color);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.job-uncomplete-btn:hover {
+    background: #E67E22;
+}
+
+.job-delete-btn {
+    background: #E57373;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 36px;
+}
+
+.job-delete-btn:hover {
+    background: #D32F2F;
+}
+
+.job-menu-btn {
+    background: none;
+    border: none;
+    font-size: 16px;
+    color: var(--dark-gray);
+    cursor: pointer;
+    padding: 4px;
+}
+
+.job-menu-btn:hover {
+    color: var(--primary-color);
+}
+
+/* Modals */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+    display: none;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 400px;
+    max-height: 90vh;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+.modal-sm .modal-content {
+    max-width: 300px;
+}
+
+.modal-header {
+    background: var(--light-gray);
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--medium-gray);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 16px;
+    color: var(--primary-color);
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--dark-gray);
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+    background: var(--medium-gray);
+    color: var(--primary-color);
+}
+
+.modal-body {
+    padding: 20px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+/* Calculator Specific Styles */
+.calc-description {
+    color: var(--dark-gray);
+    font-size: 14px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.preset-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.calc-result {
+    margin-top: 20px;
+    padding: 16px;
+    background: var(--light-gray);
+    border-radius: var(--border-radius);
+    text-align: center;
+    display: none;
+}
+
+.calc-result.active {
+    display: block;
+}
+
+.calc-result.success {
+    background: #D5EDDA;
+    color: #155724;
+    border: 1px solid #C3E6CB;
+}
+
+/* Responsive Design */
+@media (max-width: 360px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .job-add-buttons {
+        grid-template-columns: 1fr;
+    }
+    
+    .time-btn-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Animation */
+.fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-up {
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Loading States */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid transparent;
+    border-top: 2px solid var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Focus States for Accessibility */
+button:focus,
+input:focus {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}// ラミオペ・ダッシュボード Ver.3.0 - 統合ダッシュボード仕様
+
+class LaminatorDashboard {
+    constructor() {
+        this.filmSessions = []; // フィルムセッション管理
+        this.currentFilmSession = null; // 現在のフィルムセッション
+        this.extraTime = 0; // 手動追加時間（分）
+        this.defaultFilmCapacity = 500; // デフォルトフィルム容量（m）
+        this.workStarted = false; // 業務開始フラグ
+        this.workStartTime = null; // 業務開始時刻
+        this.targetEndTime = "17:00"; // 目標終業時刻
+        this.preparedJob = null; // 準備されたジョブ（追加先未決定）
+        
+        // 時間設定
+        this.timeSettings = {
+            workStart: "08:30",
+            workEnd: "17:00",
+            overtimeEnd: "18:00",  // 残業終業時刻
+            lunchBreak: 60,        // 分
+            cleanupTime: 15,       // 分
+            sameFilmChange: 10,    // 分（同種フィルム交換）
+            diffFilmChange: 15     // 分（異種フィルム交換）
+        };
+
+        this.init();
+    }
+
+    init() {
+        this.loadData();
+        this.setupEventListeners();
+        this.updateCurrentTime();
+        this.updateTimeDisplay();
+        this.updateFinishTime();
+        this.renderJobList();
+        
+        // 1秒ごとに時刻更新
+        setInterval(() => {
+            this.updateCurrentTime();
+        }, 1000);
+    }
+
+    setupEventListeners() {
+        // 入力モード切替
+        document.querySelectorAll('input[name="inputMode"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                this.switchInputMode(e.target.value);
+            });
+        });
+
+        // モーダル背景クリックで閉じる
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('active');
+                }
+            });
+        });
+    }
+
+    switchInputMode(mode) {
+        const directMode = document.getElementById('directMode');
+        const partsMode = document.getElementById('partsMode');
+
+        if (mode === 'direct') {
+            directMode.classList.add('active');
+            partsMode.classList.remove('active');
+        } else {
+            directMode.classList.remove('active');
+            partsMode.classList.add('active');
+        }
+    }
+
+    // 業務開始
+    startWork() {
+        if (!this.workStarted) {
+            this.workStarted = true;
+            this.workStartTime = new Date();
+            this.updateTimeDisplay();
+            this.updateFinishTime();
+            this.saveData();
+            this.showToast('業務を開始しました', 'success');
+        } else {
+            this.showToast('業務は既に開始されています', 'info');
+        }
+    }
+
+    // 開始時刻編集
+    editStartTime() {
+        const currentTimeStr = this.workStarted && this.workStartTime ? 
+            this.workStartTime.toTimeString().slice(0, 5) : this.timeSettings.workStart;
+        
+        const newTime = prompt('開始時刻を入力してください (HH:MM形式)', currentTimeStr);
+        if (newTime && this.isValidTimeFormat(newTime)) {
+            if (!this.workStarted) {
+                // 業務未開始の場合は即座に業務開始
+                const today = new Date();
+                const [hours, minutes] = newTime.split(':');
+                this.workStartTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), parseInt(hours), parseInt(minutes));
+                this.workStarted = true;
+            } else {
+                // 業務開始済みの場合は時刻を修正
+                const [hours, minutes] = newTime.split(':');
+                this.workStartTime.setHours(parseInt(hours), parseInt(minutes));
+            }
+            this.updateTimeDisplay();
+            this.updateFinishTime();
+            this.saveData();
+            this.showToast('開始時刻を更新しました', 'success');
+        }
+    }
+
+    // 目標時刻編集
+    editTargetTime() {
+        const currentTarget = this.targetEndTime;
+        const isOvertime = currentTarget === this.timeSettings.overtimeEnd;
+        
+        if (confirm(isOvertime ? '定時（17:00）に切り替えますか？' : '残業モードに切り替えますか？')) {
+            this.targetEndTime = isOvertime ? this.timeSettings.workEnd : this.timeSettings.overtimeEnd;
+            this.updateTimeDisplay();
+            this.showToast(`目標時刻を${this.targetEndTime}に変更しました`, 'success');
+            this.saveData();
+        }
+    }
+
+    // 時間表示更新
+    updateTimeDisplay() {
+        // 開始時刻表示
+        const workStartElement = document.getElementById('workStartTime');
+        if (this.workStarted && this.workStartTime) {
+            workStartElement.textContent = this.workStartTime.toTimeString().slice(0, 5);
+            workStartElement.classList.add('active');
+        } else {
+            workStartElement.textContent = this.timeSettings.workStart;
+            workStartElement.classList.remove('active');
+        }
+
+        // 目標時刻表示
+        const targetElement = document.getElementById('targetEndTime');
+        targetElement.textContent = this.targetEndTime;
+        targetElement.classList.toggle('overtime', this.targetEndTime === this.timeSettings.overtimeEnd);
+    }
+
+    // 時刻形式検証
+    isValidTimeFormat(timeStr) {
+        const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+        return timeRegex.test(timeStr);
+    }
+
+    // ジョブを準備（追加先は後で決定）
+    prepareJob() {
+        const jobData = this.getJobInputData();
+        if (!jobData) return;
+
+        this.preparedJob = jobData;
+        this.clearInputs();
+        this.renderJobList(); // ボタン表示更新のため
+        this.showToast(`ジョブを準備しました (${jobData.sheets}枚)。追加先のフィルムを選択してください。`, 'info');
+    }
+
+    // 準備されたジョブを指定セッションに追加
+    addPreparedJobToSession(sessionId) {
+        if (!this.preparedJob) {
+            this.showToast('準備されたジョブがありません', 'error');
+            return;
+        }
+
+        const session = this.filmSessions.find(s => s.id === sessionId);
+        if (!session) {
+            this.showToast('指定されたフィルムセッションが見つかりません', 'error');
+            return;
+        }
+
+        // フィルム残量チェック
+        if (session.filmRemaining < this.preparedJob.usageLength) {
+            if (!confirm(`フィルム残量が不足しています。\n必要: ${this.preparedJob.usageLength.toFixed(2)}m\n残量: ${session.filmRemaining.toFixed(2)}m\n\nそれでも追加しますか？`)) {
+                return;
+            }
+        }
+
+        // ジョブを追加してセッション固有の残量を更新
+        session.jobs.push(this.preparedJob);
+        session.filmRemaining = Math.max(0, session.filmRemaining - this.preparedJob.usageLength);
+        session.filmUsed += this.preparedJob.usageLength;
+
+        this.saveData();
+        this.renderJobList();
+        this.updateFinishTime();
+        this.updateFilmDisplay();
+        
+        this.showToast(`ジョブをフィルムに追加しました (${this.preparedJob.sheets}枚)`, 'success');
+        this.preparedJob = null; // 準備されたジョブをクリア
+    }
+
+    // 準備されたジョブで新しいフィルムセッションを作成
+    addPreparedJobToNewFilm() {
+        if (!this.preparedJob) {
+            this.showToast('準備されたジョブがありません', 'error');
+            return;
+        }
+
+        // 新しいフィルムセッション作成
+        this.currentFilmSession = this.createNewFilmSession();
+        
+        // ユーザー指定の初期残量がある場合はそれを使用
+        if (this.preparedJob.initialFilmRemaining !== null && this.preparedJob.initialFilmRemaining >= 0) {
+            this.currentFilmSession.filmCapacity = this.preparedJob.initialFilmRemaining;
+            this.currentFilmSession.filmRemaining = this.preparedJob.initialFilmRemaining;
+            this.currentFilmSession.filmUsed = 0;
+        }
+        
+        this.filmSessions.push(this.currentFilmSession);
+
+        // ジョブを追加してセッション固有の残量を更新
+        this.currentFilmSession.jobs.push(this.preparedJob);
+        this.currentFilmSession.filmRemaining = Math.max(0, this.currentFilmSession.filmRemaining - this.preparedJob.usageLength);
+        this.currentFilmSession.filmUsed += this.preparedJob.usageLength;
+
+        // フィルム交換時間を追加
+        this.extraTime += this.timeSettings.diffFilmChange;
+
+        this.saveData();
+        this.renderJobList();
+        this.updateFinishTime();
+        this.updateFilmDisplay();
+        
+        this.showToast(`新しいフィルムでジョブを追加しました (交換時間 +${this.timeSettings.diffFilmChange}分)`, 'success');
+        this.preparedJob = null; // 準備されたジョブをクリア
+    }
+
+    // 現在のフィルムでジョブを追加
+    addJobToCurrentFilm() {
+        const jobData = this.getJobInputData();
+        if (!jobData) return;
+
+        // 現在のフィルムセッションがない場合は作成
+        if (!this.currentFilmSession) {
+            this.currentFilmSession = this.createNewFilmSession();
+            this.filmSessions.push(this.currentFilmSession);
+        }
+
+        // セッション固有のフィルム残量チェック
+        // ユーザー指定の初期残量がある場合はセッションを更新
+        if (jobData.initialFilmRemaining !== null && jobData.initialFilmRemaining >= 0) {
+            this.currentFilmSession.filmCapacity = jobData.initialFilmRemaining;
+            this.currentFilmSession.filmRemaining = jobData.initialFilmRemaining;
+            this.currentFilmSession.filmUsed = 0;
+        }
+
+        if (this.currentFilmSession.filmRemaining < jobData.usageLength) {
+            if (!confirm(`フィルム残量が不足しています。\n必要: ${jobData.usageLength.toFixed(2)}m\n残量: ${this.currentFilmSession.filmRemaining.toFixed(2)}m\n\nそれでも追加しますか？`)) {
+                return;
+            }
+        }
+
+        // ジョブを追加してセッション固有の残量を更新
+        this.currentFilmSession.jobs.push(jobData);
+        this.currentFilmSession.filmRemaining = Math.max(0, this.currentFilmSession.filmRemaining - jobData.usageLength);
+        this.currentFilmSession.filmUsed += jobData.usageLength;
+
+        this.saveData();
+        this.renderJobList();
+        this.updateFinishTime();
+        this.updateFilmDisplay();
+        this.clearInputs();
+        this.showToast(`ジョブを現在のフィルムに追加しました (${jobData.sheets}枚)`, 'success');
+    }
+
+    // 新しいフィルムでジョブを追加
+    addJobToNewFilm() {
+        const jobData = this.getJobInputData();
+        if (!jobData) return;
+
+        // 現在のフィルムセッションを完了
+        if (this.currentFilmSession && this.currentFilmSession.jobs.length > 0) {
+            this.currentFilmSession.status = 'completed';
+            this.currentFilmSession.endTime = new Date();
+        }
+
+        // 新しいフィルムセッション作成
+        this.currentFilmSession = this.createNewFilmSession();
+        
+        // ユーザー指定の初期残量がある場合はそれを使用
+        if (jobData.initialFilmRemaining !== null && jobData.initialFilmRemaining >= 0) {
+            this.currentFilmSession.filmCapacity = jobData.initialFilmRemaining;
+            this.currentFilmSession.filmRemaining = jobData.initialFilmRemaining;
+            this.currentFilmSession.filmUsed = 0;
+        }
+        
+        this.filmSessions.push(this.currentFilmSession);
+
+        // ジョブを追加してセッション固有の残量を更新
+        this.currentFilmSession.jobs.push(jobData);
+        this.currentFilmSession.filmRemaining = Math.max(0, this.currentFilmSession.filmRemaining - jobData.usageLength);
+        this.currentFilmSession.filmUsed += jobData.usageLength;
+
+        // フィルム交換時間を追加
+        this.extraTime += this.timeSettings.diffFilmChange;
+
+        this.saveData();
+        this.renderJobList();
+        this.updateFinishTime();
+        this.updateFilmDisplay();
+        this.clearInputs();
+        this.showToast(`新しいフィルムでジョブを追加しました (交換時間 +${this.timeSettings.diffFilmChange}分)`, 'success');
+    }
+
+    // ジョブ入力データを取得・検証
+    getJobInputData() {
+        const inputMode = document.querySelector('input[name="inputMode"]:checked').value;
+        let sheets;
+
+        // 枚数計算
+        if (inputMode === 'direct') {
+            sheets = parseInt(document.getElementById('directSheets').value);
+            if (!sheets || sheets <= 0) {
+                alert('生産枚数を正しく入力してください');
+                return null;
+            }
+        } else {
+            const copies = parseInt(document.getElementById('partsCopies').value);
+            const pages = parseInt(document.getElementById('partsPages').value);
+            const extra = parseInt(document.getElementById('partsExtra').value) || 0;
+
+            if (!copies || !pages || copies <= 0 || pages <= 0) {
+                alert('部数と面数を正しく入力してください');
+                return null;
+            }
+
+            // CEILING関数: 実生産枚数 = CEILING(部数 / 面数) + 予備枚数
+            sheets = Math.ceil(copies / pages) + extra;
+        }
+
+        // 共通パラメータ取得
+        const paperLength = parseFloat(document.getElementById('paperLength').value);
+        const overlapWidth = parseFloat(document.getElementById('overlapWidth').value);
+        const processSpeed = parseFloat(document.getElementById('processSpeed').value);
+        const initialFilmRemaining = parseFloat(document.getElementById('initialFilmRemaining').value) || null;
+
+        if (!paperLength || !overlapWidth || !processSpeed || 
+            paperLength <= 0 || overlapWidth < 0 || processSpeed <= 0) {
+            alert('加工条件を正しく入力してください');
+            return null;
+        }
+
+        // 計算実行
+        const usageLength = (paperLength - overlapWidth) / 1000; // メートル変換
+        const processingTime = sheets * usageLength / processSpeed; // 分
+        
+        // 妥当性チェック
+        if (usageLength <= 0) {
+            alert('紙の長さは重ね幅より大きくしてください');
+            return null;
+        }
+        
+        if (processingTime > 480) { // 8時間以上の場合警告
+            if (!confirm(`計算結果が ${processingTime.toFixed(1)}分（${(processingTime/60).toFixed(1)}時間）です。続行しますか？`)) {
+                return null;
+            }
+        }
+
+        // ジョブデータ作成
+        return {
+            id: Date.now().toString(),
+            timestamp: new Date(),
+            sheets: sheets,
+            paperLength: paperLength,
+            overlapWidth: overlapWidth,
+            processSpeed: processSpeed,
+            usageLength: usageLength,
+            processingTime: processingTime,
+            inputMode: inputMode,
+            completed: false,
+            initialFilmRemaining: initialFilmRemaining // ユーザー指定の初期残量
+        };
+    }
+
+    // 新しいフィルムセッション作成
+    createNewFilmSession() {
+        const filmCapacity = this.getFilmCapacity();
+        return {
+            id: Date.now().toString(),
+            startTime: new Date(),
+            endTime: null,
+            jobs: [],
+            status: 'active', // active, completed
+            filmCapacity: filmCapacity, // 新しいフィルムの初期容量
+            filmRemaining: filmCapacity, // 現在の残量
+            filmUsed: 0 // 使用済み量
+        };
+    }
+
+    // フィルム容量を取得（ユーザー入力またはデフォルト）
+    getFilmCapacity() {
+        const userInput = prompt('新しいフィルムの容量 (m) を入力してください:', this.defaultFilmCapacity.toString());
+        if (userInput && !isNaN(userInput) && parseFloat(userInput) > 0) {
+            return parseFloat(userInput);
+        }
+        return this.defaultFilmCapacity;
+    }
+
+    // ジョブリスト表示
+    renderJobList() {
+        const container = document.getElementById('jobListContainer');
+        
+        if (this.filmSessions.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    まだジョブが登録されていません<br>
+                    上記のフォームからジョブを追加してください
+                </div>
+            `;
+            return;
+        }
+
+        // 各セッションの状態を更新
+        this.updateSessionStatuses();
+
+        // フィルムセッションを降順で表示（新しいフィルムが上部）
+        const reversedSessions = [...this.filmSessions].reverse();
+        
+        const sessionsHtml = reversedSessions.map((session, displayIndex) => {
+            const originalIndex = this.filmSessions.length - displayIndex;
+            const sessionStatus = this.getSessionStatus(session);
+            // 全ジョブの総使用メーター数を正確に計算
+            const totalUsed = session.jobs.reduce((total, job) => total + (job.sheets * job.usageLength), 0);
+            // 準備されたジョブがある場合のみボタンを表示
+            const addJobButton = this.preparedJob ? `
+                <button class="btn btn-sm btn-success film-add-btn" onclick="event.stopPropagation(); dashboard.addPreparedJobToSession('${session.id}')">
+                    + このフィルムにジョブを追加
+                </button>
+            ` : '';
+            return `
+            <div class="film-session">
+                <div class="session-header" onclick="dashboard.toggleSession('${session.id}')">
+                    <div class="session-title">
+                        フィルム ${originalIndex} (${session.jobs.length}ジョブ)
+                        <div class="session-film-info">使用: ${totalUsed.toFixed(1)}m / 残り: ${session.filmRemaining.toFixed(1)}m</div>
+                        ${addJobButton}
+                    </div>
+                    <div class="session-status ${sessionStatus.status}">
+                        ${sessionStatus.label}
+                    </div>
+                </div>
+                <div id="session-${session.id}" class="session-jobs">
+                    ${session.jobs.slice().reverse().map(job => `
+                        <div class="job-item ${job.completed ? 'completed' : ''}" onclick="dashboard.addFilmRemaining('${session.id}', '${job.id}')">
+                            <div class="job-actions-left">
+                                <button class="job-delete-btn" onclick="event.stopPropagation(); dashboard.deleteJob('${session.id}', '${job.id}')" title="削除">
+                                    🗑️
+                                </button>
+                            </div>
+                            <div class="job-info">
+                                <div class="job-name">${this.formatTime(job.timestamp)} のジョブ</div>
+                                <div class="job-details">
+                                    ${job.sheets}枚 / ${job.usageLength.toFixed(2)}m / ${job.processingTime.toFixed(1)}分 / ${(job.sheets * job.usageLength).toFixed(1)}m
+                                    ${job.completed ? `<br><strong>完了時刻: ${this.formatTime(job.completedAt)}</strong>` : ''}
+                                </div>
+                            </div>
+                            <div class="job-actions-right">
+                                ${job.completed ? `
+                                    <button class="job-uncomplete-btn" onclick="event.stopPropagation(); dashboard.uncompleteJob('${session.id}', '${job.id}')">
+                                        未完了に戻す
+                                    </button>
+                                ` : `
+                                    <button class="job-complete-btn" onclick="event.stopPropagation(); dashboard.completeJob('${session.id}', '${job.id}')">
+                                        完了
+                                    </button>
+                                `}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `}).join('');
+
+        // 新しいフィルム用ボタンを末尾に追加（準備されたジョブがある場合のみ）
+        const newFilmButton = this.preparedJob ? `
+            <div class="new-film-button-container">
+                <button class="btn btn-warning new-film-btn" onclick="dashboard.addPreparedJobToNewFilm()">
+                    + 新しいフィルムでジョブを開始
+                </button>
+            </div>
+        ` : '';
+
+        container.innerHTML = sessionsHtml + newFilmButton;
+    }
+
+    // セッション状態管理：親フィルムブロックの状態を子ジョブに基づいて自動更新
+    updateSessionStatuses() {
+        this.filmSessions.forEach(session => {
+            const completedJobs = session.jobs.filter(job => job.completed);
+            const totalJobs = session.jobs.length;
+            
+            if (totalJobs === 0) {
+                session.status = 'active'; // 空のセッションは進行中
+            } else if (completedJobs.length === totalJobs) {
+                session.status = 'completed'; // 全ジョブ完了
+            } else {
+                session.status = 'active'; // 一つでも未完了があれば進行中
+            }
+        });
+    }
+
+    // セッション状態を取得（表示用）
+    getSessionStatus(session) {
+        const completedJobs = session.jobs.filter(job => job.completed);
+        const totalJobs = session.jobs.length;
+        
+        if (totalJobs === 0) {
+            return { status: 'active', label: '進行中' };
+        } else if (completedJobs.length === totalJobs) {
+            return { status: 'completed', label: '完了' };
+        } else {
+            return { status: 'active', label: '進行中' };
+        }
+    }
+
+    // セッション展開/折りたたみ
+    toggleSession(sessionId) {
+        const sessionJobs = document.getElementById(`session-${sessionId}`);
+        sessionJobs.classList.toggle('collapsed');
+    }
+
+    // ジョブ完了
+    completeJob(sessionId, jobId) {
+        const session = this.filmSessions.find(s => s.id === sessionId);
+        if (!session) {
+            console.error('セッションが見つかりません:', sessionId);
+            return;
+        }
+
+        const job = session.jobs.find(j => j.id === jobId);
+        if (!job) {
+            console.error('ジョブが見つかりません:', jobId);
+            return;
+        }
+
+        // 確定終了時刻を記録
+        const completedAt = new Date();
+        job.completed = true;
+        job.completedAt = completedAt;
+        job.actualCompletionTime = completedAt; // 実際の完了時刻
+
+        // セッション状態も更新
+        this.updateSessionStatuses();
+
+        // 全体の終了時刻を再計算（完了したジョブは実時間から除外）
+        this.recalculateFinishTime();
+
+        this.saveData();
+        this.renderJobList();
+        this.updateFinishTime();
+        
+        const completedTimeStr = completedAt.toLocaleTimeString('ja-JP', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        this.showToast(`ジョブを完了しました（${completedTimeStr}）`, 'success');
+    }
+
+    // ジョブ未完了に戻す
+    uncompleteJob(sessionId, jobId) {
+        const session = this.filmSessions.find(s => s.id === sessionId);
+        if (!session) {
+            console.error('セッションが見つかりません:', sessionId);
+            return;
+        }
+
+        const job = session.jobs.find(j => j.id === jobId);
+        if (!job) {
+            console.error('ジョブが見つかりません:', jobId);
+            return;
+        }
+
+        // 完了状態をリセット
+        job.completed = false;
+        job.completedAt = null;
+        job.actualCompletionTime = null;
+
+        // セッション状態も更新（親ブロックが自動的に「進行中」に戻る）
+        this.updateSessionStatuses();
+
+        // 全体の終了時刻を再計算
+        this.recalculateFinishTime();
+
+        this.saveData();
+        this.renderJobList();
+        this.updateFinishTime();
+        
+        this.showToast('ジョブを未完了に戻しました', 'info');
+    }
+
+    // フィルム残量追加機能
+    addFilmRemaining(sessionId, jobId) {
+        const session = this.filmSessions.find(s => s.id === sessionId);
+        if (!session) return;
+
+        const job = session.jobs.find(j => j.id === jobId);
+        if (!job) return;
+
+        const currentRemaining = session.filmRemaining;
+        const adjustmentAmount = prompt(
+            `フィルム残量を調整してください:\n\n` +
+            `現在の残量: ${currentRemaining.toFixed(1)}m\n` +
+            `このジョブの必要量: ${job.usageLength.toFixed(2)}m\n\n` +
+            `調整量 (正数で追加、負数で減算):`,
+            ''
+        );
+        
+        if (adjustmentAmount && !isNaN(adjustmentAmount)) {
+            const adjustAmount = parseFloat(adjustmentAmount);
+            
+            // セッションのフィルム残量と容量を調整
+            session.filmRemaining += adjustAmount;
+            session.filmCapacity += adjustAmount;
+            
+            // 残量が負にならないように制限
+            if (session.filmRemaining < 0) {
+                session.filmRemaining = 0;
+            }
+            if (session.filmCapacity < 0) {
+                session.filmCapacity = 0;
+            }
+            
+            this.saveData();
+            this.renderJobList();
+            this.updateFilmDisplay();
+            
+            const actionText = adjustAmount >= 0 ? `追加` : `減算`;
+            this.showToast(`フィルム残量を ${Math.abs(adjustAmount)}m ${actionText}しました`, 'success');
+        }
+    }
+
+    // 終了時刻再計算（完了ジョブを考慮）
+    recalculateFinishTime() {
+        if (!this.workStarted) return;
+
+        // 未完了ジョブのみの合計時間を計算
+        const allJobs = this.filmSessions.flatMap(session => session.jobs);
+        const incompleteJobs = allJobs.filter(job => !job.completed);
+        const totalProcessingTime = incompleteJobs.reduce((total, job) => total + job.processingTime, 0);
+        
+        // 完了ジョブの実際の時間消費を考慮（現在時刻基準）
+        const now = new Date();
+        const elapsedTime = (now - this.workStartTime) / 60000; // 分
+        
+        // 残り時間 = 未完了ジョブの時間 + 追加時間 + 片付け時間
+        const remainingTime = totalProcessingTime + this.extraTime + this.timeSettings.cleanupTime;
+        
+        // 新しい終了予定時刻 = 現在時刻 + 残り時間
+        this.estimatedFinishTime = new Date(now.getTime() + remainingTime * 60000);
+        
+        return this.estimatedFinishTime;
+    }
+
+    // ジョブ削除
+    deleteJob(sessionId, jobId) {
+        if (!confirm('このジョブを削除しますか？')) return;
+
+        const session = this.filmSessions.find(s => s.id === sessionId);
+        if (!session) return;
+
+        const jobIndex = session.jobs.findIndex(j => j.id === jobId);
+        if (jobIndex === -1) return;
+
+        const job = session.jobs[jobIndex];
+        
+        // セッション固有のフィルム使用量を戻す
+        if (!job.completed) {
+            session.filmRemaining += job.usageLength;
+            session.filmUsed = Math.max(0, session.filmUsed - job.usageLength);
+        }
+
+        session.jobs.splice(jobIndex, 1);
+
+        // セッションが空になった場合は削除
+        if (session.jobs.length === 0) {
+            const sessionIndex = this.filmSessions.findIndex(s => s.id === sessionId);
+            this.filmSessions.splice(sessionIndex, 1);
+            
+            // 現在のセッションを更新
+            if (this.currentFilmSession && this.currentFilmSession.id === sessionId) {
+                this.currentFilmSession = this.filmSessions.find(s => s.status === 'active') || null;
+            }
+        }
+
+        this.saveData();
+        this.renderJobList();
+        this.updateFinishTime();
+        this.showToast('ジョブを削除しました', 'success');
+    }
+
+    // 手動時間追加
+    addManualTime() {
+        const minutes = prompt('追加する時間を分で入力してください:');
+        if (minutes && !isNaN(minutes) && parseInt(minutes) > 0) {
+            this.extraTime += parseInt(minutes);
+            this.saveData();
+            this.updateFinishTime();
+            this.showToast(`${minutes}分を追加しました`, 'success');
+        }
+    }
+
+    // 昼休み追加
+    addLunchBreak() {
+        this.extraTime += this.timeSettings.lunchBreak;
+        this.saveData();
+        this.updateFinishTime();
+        this.showToast(`昼休み ${this.timeSettings.lunchBreak}分を追加しました`, 'success');
+    }
+
+    // 交換時間追加
+    addExchangeTime() {
+        const exchangeTime = this.timeSettings.diffFilmChange;
+        this.extraTime += exchangeTime;
+        this.saveData();
+        this.updateFinishTime();
+        this.showToast(`フィルム交換時間 ${exchangeTime}分を追加しました`, 'success');
+    }
+
+    // フィルム残量設定
+    setFilmAmount() {
+        if (!this.currentFilmSession) {
+            this.showToast('先にジョブを追加してフィルムセッションを開始してください', 'warning');
+            return;
+        }
+
+        const currentRemaining = this.currentFilmSession.filmRemaining;
+        const amount = prompt('現在のフィルム残量 (m) を入力してください:', currentRemaining.toString());
+        if (amount && !isNaN(amount) && parseFloat(amount) >= 0) {
+            this.currentFilmSession.filmRemaining = parseFloat(amount);
+            // 使用量も再計算（容量 - 残量 = 使用量）
+            this.currentFilmSession.filmUsed = this.currentFilmSession.filmCapacity - parseFloat(amount);
+            this.updateFilmDisplay();
+            this.saveData();
+            this.showToast(`フィルム残量を ${amount}m に設定しました`, 'success');
+        }
+    }
+
+    // 設定モーダル表示
+    showSettings() {
+        this.loadSettingsToUI();
+        const modal = document.getElementById('settingsModal');
+        modal.classList.add('active');
+    }
+
+    // 設定モーダル非表示
+    hideSettings() {
+        const modal = document.getElementById('settingsModal');
+        modal.classList.remove('active');
+    }
+
+    // 設定をUIに読み込み
+    loadSettingsToUI() {
+        document.getElementById('settingWorkStart').value = this.timeSettings.workStart;
+        document.getElementById('settingWorkEnd').value = this.timeSettings.workEnd;
+        document.getElementById('settingOvertimeEnd').value = this.timeSettings.overtimeEnd;
+        document.getElementById('settingLunchBreak').value = this.timeSettings.lunchBreak;
+        document.getElementById('settingCleanupTime').value = this.timeSettings.cleanupTime;
+        document.getElementById('settingDiffFilmChange').value = this.timeSettings.diffFilmChange;
+    }
+
+    // 設定を保存
+    saveSettings() {
+        const newSettings = {
+            workStart: document.getElementById('settingWorkStart').value,
+            workEnd: document.getElementById('settingWorkEnd').value,
+            overtimeEnd: document.getElementById('settingOvertimeEnd').value,
+            lunchBreak: parseInt(document.getElementById('settingLunchBreak').value),
+            cleanupTime: parseInt(document.getElementById('settingCleanupTime').value),
+            sameFilmChange: this.timeSettings.sameFilmChange, // 維持
+            diffFilmChange: parseInt(document.getElementById('settingDiffFilmChange').value)
+        };
+
+        // 入力値検証
+        if (!newSettings.workStart || !newSettings.workEnd || !newSettings.overtimeEnd ||
+            newSettings.lunchBreak < 0 || newSettings.cleanupTime < 0 || newSettings.diffFilmChange < 0) {
+            alert('設定値を正しく入力してください');
+            return;
+        }
+
+        this.timeSettings = newSettings;
+        this.saveData();
+        this.updateFinishTime(); // 終了時刻を再計算
+        this.hideSettings();
+        this.showToast('設定を保存しました', 'success');
+    }
+
+    // 設定をデフォルトに戻す
+    resetSettings() {
+        if (confirm('設定をデフォルト値に戻しますか？')) {
+            this.timeSettings = {
+                workStart: "08:30",
+                workEnd: "17:00",
+                overtimeEnd: "18:00",
+                lunchBreak: 60,
+                cleanupTime: 15,
+                sameFilmChange: 10,
+                diffFilmChange: 15
+            };
+            this.loadSettingsToUI();
+            this.saveData();
+            this.updateFinishTime();
+            this.showToast('設定をデフォルトに戻しました', 'success');
+        }
+    }
+
+    // レポート表示
+    showReport() {
+        const allJobs = this.filmSessions.flatMap(session => session.jobs);
+        const totalSheets = allJobs.reduce((total, job) => total + job.sheets, 0);
+        const totalUsage = allJobs.reduce((total, job) => total + job.usageLength, 0);
+        const totalProcessingTime = allJobs.reduce((total, job) => total + job.processingTime, 0);
+        const completedJobs = allJobs.filter(job => job.completed).length;
+        
+        const reportContent = `
+            <div class="report-summary">
+                <h3>本日のサマリー</h3>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <div class="summary-label">フィルムセッション数</div>
+                        <div class="summary-value">${this.filmSessions.length}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">合計ジョブ数</div>
+                        <div class="summary-value">${allJobs.length}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">完了ジョブ数</div>
+                        <div class="summary-value">${completedJobs}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">合計生産枚数</div>
+                        <div class="summary-value">${totalSheets}枚</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">合計使用メーター</div>
+                        <div class="summary-value">${totalUsage.toFixed(2)}m</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">生産時間</div>
+                        <div class="summary-value">${totalProcessingTime.toFixed(1)}分</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">手動追加時間</div>
+                        <div class="summary-value">${this.extraTime}分</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">現在フィルム残量</div>
+                        <div class="summary-value">${this.currentFilmSession ? this.currentFilmSession.filmRemaining.toFixed(1) : '0.0'}m</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="report-history">
+                <h3>フィルムセッション履歴</h3>
+                <div class="history-list">
+                    ${this.filmSessions.map((session, index) => `
+                        <div class="history-item">
+                            <div class="history-header">
+                                <span>フィルム ${index + 1}</span>
+                                <span>${session.status === 'completed' ? '完了' : '進行中'}</span>
+                            </div>
+                            <div class="history-details">
+                                ${session.jobs.length}ジョブ / ${session.jobs.reduce((sum, job) => sum + job.usageLength, 0).toFixed(2)}m / ${session.jobs.reduce((sum, job) => sum + job.processingTime, 0).toFixed(1)}分
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('reportContent').innerHTML = reportContent;
+        document.getElementById('reportModal').classList.add('active');
+    }
+
+    // レポート非表示
+    hideReport() {
+        document.getElementById('reportModal').classList.remove('active');
+    }
+
+    // 現在時刻更新
+    updateCurrentTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('ja-JP', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        document.getElementById('currentTime').textContent = timeString;
+    }
+
+    // 終了時刻更新
+    updateFinishTime() {
+        if (!this.workStarted) {
+            document.getElementById('finalFinishTime').textContent = '--:--';
+            document.getElementById('finishStatus').textContent = '業務開始前';
+            return;
+        }
+
+        const allJobs = this.filmSessions.flatMap(session => session.jobs);
+        const totalProcessingTime = allJobs.reduce((total, job) => total + job.processingTime, 0);
+        const totalTime = totalProcessingTime + this.extraTime + this.timeSettings.cleanupTime;
+        
+        // 開始時刻から終了時刻を計算
+        const finishTime = new Date(this.workStartTime.getTime() + totalTime * 60000);
+        
+        const finishTimeString = finishTime.toLocaleTimeString('ja-JP', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        document.getElementById('finalFinishTime').textContent = finishTimeString;
+        
+        // ステータス更新
+        this.updateFinishStatus(finishTime);
+    }
+
+    // 終了ステータス更新
+    updateFinishStatus(finishTime) {
+        const statusElement = document.getElementById('finishStatus');
+        const now = new Date();
+        const targetTime = this.parseTime(this.targetEndTime);
+        const warningTime = this.parseTime('16:45');
+        
+        if (finishTime > targetTime) {
+            const overMinutes = Math.floor((finishTime - targetTime) / 60000);
+            statusElement.textContent = `目標超過 +${overMinutes}分`;
+            statusElement.className = 'time-status danger';
+        } else if (finishTime > warningTime) {
+            const remainingMinutes = Math.floor((targetTime - finishTime) / 60000);
+            statusElement.textContent = `目標まで${remainingMinutes}分`;
+            statusElement.className = 'time-status warning';
+        } else {
+            statusElement.textContent = '目標時刻内で終了予定';
+            statusElement.className = 'time-status success';
+        }
+    }
+
+    // フィルム残量表示更新
+    updateFilmDisplay() {
+        const filmRemaining = this.currentFilmSession ? this.currentFilmSession.filmRemaining : 0;
+        const filmRemainingElement = document.getElementById('currentFilmRemaining');
+        if (filmRemainingElement) {
+            filmRemainingElement.textContent = filmRemaining.toFixed(1);
+        }
+        // フィルム残量表示要素がない場合は何もしない（エラー回避）
+    }
+
+    // 入力フィールドクリア
+    clearInputs() {
+        document.getElementById('directSheets').value = '';
+        document.getElementById('partsCopies').value = '';
+        document.getElementById('partsPages').value = '';
+        document.getElementById('partsExtra').value = '0';
+        document.getElementById('paperLength').value = '';
+        document.getElementById('overlapWidth').value = '';
+        document.getElementById('processSpeed').value = '';
+        document.getElementById('initialFilmRemaining').value = '';
+    }
+
+    // 時刻パース
+    parseTime(timeString) {
+        const [hours, minutes] = timeString.split(':').map(Number);
+        const date = new Date();
+        date.setHours(hours, minutes, 0, 0);
+        return date;
+    }
+
+    // 時刻フォーマット
+    formatTime(date) {
+        return date.toLocaleTimeString('ja-JP', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    // データ保存
+    saveData() {
+        const data = {
+            date: new Date().toDateString(),
+            filmSessions: this.filmSessions,
+            currentFilmSessionId: this.currentFilmSession ? this.currentFilmSession.id : null,
+            extraTime: this.extraTime,
+            workStarted: this.workStarted,
+            workStartTime: this.workStartTime,
+            targetEndTime: this.targetEndTime,
+            timeSettings: this.timeSettings
+        };
+        
+        localStorage.setItem('laminator_dashboard_v3', JSON.stringify(data));
+    }
+
+    // データ読み込み
+    loadData() {
+        try {
+            const rawData = localStorage.getItem('laminator_dashboard_v3');
+            const data = rawData ? JSON.parse(rawData) : {};
+            const today = new Date().toDateString();
+            
+            if (data.date === today && data.filmSessions) {
+                // 既存データの復元
+                this.filmSessions = Array.isArray(data.filmSessions) ? data.filmSessions : [];
+                this.extraTime = Number(data.extraTime) || 0;
+                this.workStarted = Boolean(data.workStarted);
+                this.workStartTime = data.workStartTime ? new Date(data.workStartTime) : null;
+                this.targetEndTime = data.targetEndTime || "17:00";
+                
+                // 設定も復元
+                if (data.timeSettings && typeof data.timeSettings === 'object') {
+                    this.timeSettings = { ...this.timeSettings, ...data.timeSettings };
+                }
+                
+                // 現在のフィルムセッションを復元
+                if (data.currentFilmSessionId && this.filmSessions.length > 0) {
+                    this.currentFilmSession = this.filmSessions.find(s => s.id === data.currentFilmSessionId) || null;
+                }
+                
+                console.log('データを正常に復元しました:', this.filmSessions.length + '個のセッション');
+            } else {
+                // 日付が変わった場合または初回起動時はリセット
+                this.initDefaultData();
+                
+                // 設定のみ引き継ぎ
+                if (data.timeSettings && typeof data.timeSettings === 'object') {
+                    this.timeSettings = { ...this.timeSettings, ...data.timeSettings };
+                }
+                
+                if (data.date) {
+                    this.showToast('新しい日の作業を開始します', 'info');
+                } else {
+                    console.log('初回起動 - デフォルトデータで開始');
+                }
+            }
+            
+            // 初期表示更新
+            this.updateFilmDisplay();
+            
+        } catch (error) {
+            console.error('データ読み込みエラー詳細:', error);
+            console.error('エラーが発生したlocalStorageデータ:', localStorage.getItem('laminator_dashboard_v3'));
+            this.showToast('データの読み込みに失敗しました。初期状態で開始します。', 'error');
+            this.initDefaultData();
+        }
+    }
+
+    // デフォルトデータ初期化
+    initDefaultData() {
+        this.filmSessions = [];
+        this.currentFilmSession = null;
+        this.extraTime = 0;
+        this.workStarted = false;
+        this.workStartTime = null;
+    }
+
+    // トースト通知
+    showToast(message, type = 'info') {
+        // 既存のトーストを削除
+        const existingToast = document.querySelector('.toast-notification');
+        if (existingToast) {
+            existingToast.remove();
+        }
+
+        // トースト要素を作成
+        const toast = document.createElement('div');
+        toast.className = `toast-notification toast-${type}`;
+        toast.textContent = message;
+        
+        // スタイルを設定
+        Object.assign(toast.style, {
+            position: 'fixed',
+            bottom: '20px',
+            left: '50%',
+            transform: 'translateX(-50%) translateY(100px)',
+            background: this.getToastColor(type),
+            color: 'white',
+            padding: '12px 20px',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            zIndex: '10000',
+            opacity: '0',
+            transition: 'all 0.3s ease'
+        });
+
+        document.body.appendChild(toast);
+
+        // アニメーションでトーストを表示
+        setTimeout(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(-50%) translateY(0)';
+        }, 50);
+
+        // 3秒後にフェードアウトして削除
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(-50%) translateY(100px)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, 3000);
+    }
+
+    getToastColor(type) {
+        const colors = {
+            success: '#27AE60',
+            error: '#E74C3C',
+            warning: '#F39C12',
+            info: '#3498DB'
+        };
+        return colors[type] || colors.info;
+    }
+}
+
+// アプリケーション初期化
+let dashboard;
+
+document.addEventListener('DOMContentLoaded', () => {
+    dashboard = new LaminatorDashboard();
+    
+    // PWA対応
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(registration => {
+                    console.log('SW registered: ', registration);
+                })
+                .catch(registrationError => {
+                    console.log('SW registration failed: ', registrationError);
+                });
+        });
+    }
+});
