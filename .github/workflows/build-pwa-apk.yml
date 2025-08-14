@@ -62,100 +62,90 @@ jobs:
         run: |
           npx cap copy android
           
-      - name: Create laminator-dashboard keystore
-        working-directory: android
+      - name: Setup keystore for signing
         run: |
-          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "KEYSTORE_BASE64 secret is not set! Creating development keystore..."
-            # フォールバック: 開発用キーストアを動的生成
-            keytool -genkeypair -v -keystore app/laminator-dashboard.keystore \
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "📱 Using production keystore from GitHub Secrets"
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+            echo "KEYSTORE_FILE=release.keystore" >> $GITHUB_ENV
+            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+          else
+            echo "🔧 Creating development keystore for consistent signing"
+            keytool -genkeypair -v -keystore android/app/laminator-dev.keystore \
               -alias laminator -keyalg RSA -keysize 2048 -validity 10000 \
               -dname "CN=Laminator,O=BochangDev,C=JP" \
               -storepass laminator123 -keypass laminator123
-          else
-            echo "Using keystore from GitHub Secrets..."
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/laminator-dashboard.keystore
+            echo "KEYSTORE_FILE=laminator-dev.keystore" >> $GITHUB_ENV
+            echo "KEYSTORE_PASSWORD=laminator123" >> $GITHUB_ENV
+            echo "KEY_ALIAS=laminator" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=laminator123" >> $GITHUB_ENV
           fi
           
-      - name: Configure Android signing
-        working-directory: android
+      - name: Build signed Android APK
+        uses: capacitor-community/action-android-release@v1
+        with:
+          android-path: ./android
+          keystore-path: ${{ env.KEYSTORE_FILE }}
+          keystore-password: ${{ env.KEYSTORE_PASSWORD }}
+          keystore-key-alias: ${{ env.KEY_ALIAS }}
+          keystore-key-password: ${{ env.KEY_PASSWORD }}
+          
+      - name: Copy and rename APK
         run: |
-          # 署名環境変数の設定
-          export LAMINATOR_STORE_FILE="laminator-dashboard.keystore"
-          export LAMINATOR_STORE_PASSWORD="${{ secrets.KEYSTORE_PASSWORD || 'laminator123' }}"
-          export LAMINATOR_KEY_ALIAS="${{ secrets.KEY_ALIAS || 'laminator' }}"
-          export LAMINATOR_KEY_PASSWORD="${{ secrets.KEY_PASSWORD || 'laminator123' }}"
+          echo "🔍 Searching for generated APK files..."
+          find android -name "*.apk" -type f -ls
           
-          # build.gradleに署名設定を追加
-          cat >> app/build.gradle << 'EOF'
-          
-          android {
-              signingConfigs {
-                  release {
-                      storeFile file(System.getenv("LAMINATOR_STORE_FILE") ?: "laminator-dashboard.keystore")
-                      storePassword System.getenv("LAMINATOR_STORE_PASSWORD") ?: "laminator123"
-                      keyAlias System.getenv("LAMINATOR_KEY_ALIAS") ?: "laminator"
-                      keyPassword System.getenv("LAMINATOR_KEY_PASSWORD") ?: "laminator123"
-                  }
-              }
-              
-              buildTypes {
-                  release {
-                      signingConfig signingConfigs.release
-                  }
-                  debug {
-                      signingConfig signingConfigs.release
-                  }
-              }
-          }
-          EOF
-          
-      - name: Build Android APK
-        working-directory: android
-        env:
-          LAMINATOR_STORE_FILE: "laminator-dev-key.jks"
-          LAMINATOR_STORE_PASSWORD: "laminator123"
-          LAMINATOR_KEY_ALIAS: "laminator"
-          LAMINATOR_KEY_PASSWORD: "laminator123"
-        run: |
-          ./gradlew assembleRelease --no-daemon --stacktrace
-          
-      - name: Sign and optimize APK
-        working-directory: android
-        run: |
-          # APKファイルを確認
-          find . -name "*.apk" -type f
-          
-          # リリースAPKを検索
-          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          # capacitor-community action generates APK in android/app/build/outputs/apk/release/
+          APK_FILE=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
           if [ -n "$APK_FILE" ]; then
-            echo "Found APK: $APK_FILE"
-            cp "$APK_FILE" ../laminator-dashboard-v$(date +%Y%m%d-%H%M%S).apk
+            TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+            NEW_NAME="laminator-dashboard-v2.16-${TIMESTAMP}.apk"
+            echo "✅ Found APK: $APK_FILE"
+            echo "📦 Copying to: $NEW_NAME"
+            cp "$APK_FILE" "$NEW_NAME"
+            echo "APK_FILENAME=$NEW_NAME" >> $GITHUB_ENV
+          else
+            echo "❌ No APK found in expected location"
+            echo "📂 Full directory listing:"
+            find android -type f -name "*.apk"
+            exit 1
           fi
           
       - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: laminator-dashboard-v*.apk
+          files: ${{ env.APK_FILENAME }}
           tag_name: v2.16-build-${{ github.run_number }}
-          name: "Laminator Dashboard v2.16 Build ${{ github.run_number }}"
+          name: "🎛️ Laminator Dashboard v2.16 Build ${{ github.run_number }}"
           body: |
-            🎛️ **ラミオペ・ダッシュボード v2.16**
+            # 🎛️ ラミオペ・ダッシュボード v2.16
             
-            自動ビルド APK - GitHub Actions により自動生成
+            **📱 自動ビルドAPK** - capacitor-community公式アクションで署名済み
             
-            ## 📱 インストール方法
-            1. APKファイルをダウンロード
-            2. Android端末で「不明なソースからのインストール」を許可
-            3. APKファイルをタップしてインストール
+            ## 📥 インストール方法
+            1. ⬇️ APKファイルをダウンロード
+            2. 🔓 Android端末で「不明なソースからのインストール」を許可
+            3. 📱 APKファイルをタップしてインストール
             
-            ## ✨ Ver.2.16 機能
-            - 時間計算機（生産時間・終了時刻予測）
-            - フィルムセッション管理
-            - ジョブ管理・進捗追跡
-            - レポート生成機能
-            - PWA対応（オフライン動作）
+            ## ✨ Ver.2.16 全機能
+            - ⏰ **時間計算機** - 生産時間・終了時刻予測
+            - 🎞️ **フィルムセッション管理** - 消費量シミュレーション  
+            - 📋 **ジョブ管理** - リアルタイム進捗追跡
+            - 📊 **レポート生成** - 作業効率分析
+            - 🌐 **PWA対応** - オフライン動作・ホーム画面追加
+            - 🔄 **シームレス更新** - 署名一貫性による上書きインストール
             
-            🤖 Generated with GitHub Actions
+            ## 🔧 技術仕様
+            - **ビルド環境**: Ubuntu Latest + Node.js 18 + Java 17
+            - **署名方式**: capacitor-community/action-android-release@v1
+            - **APKサイズ**: 自動最適化済み
+            - **対応OS**: Android 7.0以上推奨
+            
+            ---
+            🤖 **自動ビルド**: GitHub Actions  
+            🏗️ **ビルド番号**: ${{ github.run_number }}  
+            📅 **ビルド日時**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
