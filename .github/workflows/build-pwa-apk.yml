@@ -65,23 +65,26 @@ jobs:
       - name: Create laminator-dashboard keystore
         working-directory: android
         run: |
-          # 固定パラメータでキーストア生成（プロジェクト固有）
-          if [ ! -f "laminator-dev-key.jks" ]; then
-            echo "🔑 Creating project-specific development keystore..."
-            keytool -genkeypair -v -keystore laminator-dev-key.jks \
+          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "KEYSTORE_BASE64 secret is not set! Creating development keystore..."
+            # フォールバック: 開発用キーストアを動的生成
+            keytool -genkeypair -v -keystore app/laminator-dashboard.keystore \
               -alias laminator -keyalg RSA -keysize 2048 -validity 10000 \
               -dname "CN=Laminator,O=BochangDev,C=JP" \
               -storepass laminator123 -keypass laminator123
+          else
+            echo "Using keystore from GitHub Secrets..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/laminator-dashboard.keystore
           fi
           
       - name: Configure Android signing
         working-directory: android
         run: |
           # 署名環境変数の設定
-          export LAMINATOR_STORE_FILE="laminator-dev-key.jks"
-          export LAMINATOR_STORE_PASSWORD="laminator123"
-          export LAMINATOR_KEY_ALIAS="laminator"
-          export LAMINATOR_KEY_PASSWORD="laminator123"
+          export LAMINATOR_STORE_FILE="laminator-dashboard.keystore"
+          export LAMINATOR_STORE_PASSWORD="${{ secrets.KEYSTORE_PASSWORD || 'laminator123' }}"
+          export LAMINATOR_KEY_ALIAS="${{ secrets.KEY_ALIAS || 'laminator' }}"
+          export LAMINATOR_KEY_PASSWORD="${{ secrets.KEY_PASSWORD || 'laminator123' }}"
           
           # build.gradleに署名設定を追加
           cat >> app/build.gradle << 'EOF'
@@ -89,7 +92,7 @@ jobs:
           android {
               signingConfigs {
                   release {
-                      storeFile file(System.getenv("LAMINATOR_STORE_FILE") ?: "../laminator-dev-key.jks")
+                      storeFile file(System.getenv("LAMINATOR_STORE_FILE") ?: "laminator-dashboard.keystore")
                       storePassword System.getenv("LAMINATOR_STORE_PASSWORD") ?: "laminator123"
                       keyAlias System.getenv("LAMINATOR_KEY_ALIAS") ?: "laminator"
                       keyPassword System.getenv("LAMINATOR_KEY_PASSWORD") ?: "laminator123"
