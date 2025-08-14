@@ -58,47 +58,18 @@ jobs:
           EOF
           npx cap add android
           
-      - name: Copy web assets
+      - name: Prepare web assets
         run: |
           npx cap copy android
           
-      - name: Setup keystore for signing
-        run: |
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "📱 Using production keystore from GitHub Secrets"
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
-            echo "KEYSTORE_FILE=release.keystore" >> $GITHUB_ENV
-            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
-            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
-          else
-            echo "🔧 Creating development keystore for consistent signing"
-            keytool -genkeypair -v -keystore android/app/laminator-dev.keystore \
-              -alias laminator -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=Laminator,O=BochangDev,C=JP" \
-              -storepass laminator123 -keypass laminator123
-            echo "KEYSTORE_FILE=laminator-dev.keystore" >> $GITHUB_ENV
-            echo "KEYSTORE_PASSWORD=laminator123" >> $GITHUB_ENV
-            echo "KEY_ALIAS=laminator" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=laminator123" >> $GITHUB_ENV
-          fi
-          
-      - name: Fix Gradle Repositories
-        run: |
-          echo "✅ Patching android/build.gradle to add Google's Maven repository..."
-          sed -i "/buildscript {/,/}/ s/repositories {/repositories {\n        google()/" android/build.gradle
-          sed -i "/allprojects {/,/}/ s/repositories {/repositories {\n        google()/" android/build.gradle
-          echo "📄 Patched build.gradle content:"
-          cat android/build.gradle
-          
-      - name: Build signed Android APK
-        uses: capawesome-team/capacitor-android-release-action@v1
+      - name: Build signed APK
+        uses: Narottam04/action-capacitor-android@v1.0.0
         with:
-          android-path: ./android
-          keystore-path: ${{ env.KEYSTORE_FILE }}
-          keystore-password: ${{ env.KEYSTORE_PASSWORD }}
-          keystore-key-alias: ${{ env.KEY_ALIAS }}
-          keystore-key-password: ${{ env.KEY_PASSWORD }}
+          # 新しいアクションのパラメータに、私たちのSecretsを割り当て
+          RELEASE_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           
       - name: Copy and rename APK
         run: |
