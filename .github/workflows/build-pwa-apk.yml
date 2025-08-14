@@ -35,33 +35,27 @@ jobs:
           npm init -y
           npm install @capacitor/android @capacitor/core
           
-      - name: Prepare web assets
+      - name: Prepare and Initialize Capacitor
         run: |
+          # --- Web資産の準備 ---
           sudo apt-get update && sudo apt-get install -y rsync
           mkdir -p www
           rsync -av --exclude='.git*' --exclude='.github' --exclude='node_modules' --exclude='android' ./ www/
           
-      - name: Initialize Capacitor
-        run: |
-          # Capacitor設定ファイル作成
+          # --- Capacitorの初期化とAndroidプラットフォームの追加 ---
           cat > capacitor.config.ts << 'EOF'
           import { CapacitorConfig } from '@capacitor/cli';
-          
           const config: CapacitorConfig = {
             appId: 'com.bochang.laminator',
             appName: 'ラミオペ・ダッシュボード',
             webDir: 'www',
             bundledWebRuntime: false,
             android: {
-              allowMixedContent: true
-            }
+              allowMixedContent: true,
+            },
           };
-          
           export default config;
           EOF
-          
-      - name: Add Android platform
-        run: |
           npx cap add android
           
       - name: Copy web assets
