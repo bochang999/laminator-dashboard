@@ -83,6 +83,14 @@ jobs:
             echo "KEY_PASSWORD=laminator123" >> $GITHUB_ENV
           fi
           
+      - name: Fix Gradle Repositories
+        run: |
+          echo "✅ Patching android/build.gradle to add Google's Maven repository..."
+          sed -i "/buildscript {/,/}/ s/repositories {/repositories {\n        google()/" android/build.gradle
+          sed -i "/allprojects {/,/}/ s/repositories {/repositories {\n        google()/" android/build.gradle
+          echo "📄 Patched build.gradle content:"
+          cat android/build.gradle
+          
       - name: Build signed Android APK
         uses: capacitor-community/action-android-release@v1
         with:
