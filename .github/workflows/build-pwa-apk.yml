@@ -37,6 +37,11 @@ jobs:
           
       - name: Initialize Capacitor
         run: |
+          # webアセットフォルダを作成してファイルをコピー
+          mkdir -p www
+          cp *.html *.css *.js *.json *.png www/ 2>/dev/null || true
+          cp -r icons www/ 2>/dev/null || true
+          
           # Capacitor設定ファイル作成
           cat > capacitor.config.ts << 'EOF'
           import { CapacitorConfig } from '@capacitor/cli';
@@ -44,7 +49,7 @@ jobs:
           const config: CapacitorConfig = {
             appId: 'com.bochang.laminator',
             appName: 'ラミオペ・ダッシュボード',
-            webDir: '.',
+            webDir: 'www',
             bundledWebRuntime: false,
             android: {
               allowMixedContent: true
