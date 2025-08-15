@@ -49,12 +49,19 @@ jobs:
           npm i -D @capacitor/cli@7 @capacitor/android@7
           npm i @capacitor/core@7
 
-      - name: Create Web Build Directory  
+      - name: Detect webDir (robust)
+        id: detect
         run: |
-          echo "📂 Creating proper web build directory for Capacitor..."
-          mkdir -p www
-          cp *.html *.css *.js *.json *.png www/ 2>/dev/null || true
-          echo "✅ Web assets copied to www/ directory"
+          echo "🔍 Detecting webDir location with robust method..."
+          for d in dist build www public .; do
+            if [ -f "$d/index.html" ]; then
+              echo "✅ Found index.html in: $d"
+              echo "webdir=$d" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          done
+          echo "::error::index.html が見つかりません"
+          exit 1
 
       - name: Clean Capacitor Setup (Ephemeral Init)
         run: |
@@ -65,8 +72,10 @@ jobs:
       - name: Initialize Capacitor (Fresh Start)
         run: |
           echo "⚡ Fresh Capacitor initialization without config conflicts..."
-          # Capacitor初期化（設定ファイルなしで開始）
-          npx cap init "${{ env.APP_NAME }}" "${{ env.APP_ID }}" --web-dir="www"
+          echo "📂 Using webDir: ${{ steps.detect.outputs.webdir }}"
+          
+          # Capacitor初期化（検出されたwebDirを使用）
+          npx cap init "${{ env.APP_NAME }}" "${{ env.APP_ID }}" --web-dir="${{ steps.detect.outputs.webdir }}"
           
           echo "🔧 Adding Android platform..."
           npx cap add android
