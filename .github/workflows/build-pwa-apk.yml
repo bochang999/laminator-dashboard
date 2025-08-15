@@ -32,6 +32,14 @@ jobs:
           echo "🔑 Accepting Android SDK licenses automatically..."
           yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
         
+      - name: Update Android SDK to API 35
+        run: |
+          set -e
+          echo "📱 Updating Android SDK to support API 35 (VANILLA_ICE_CREAM)..."
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --update
+          echo "✅ Android SDK updated successfully"
+        
       - name: Install Capacitor CLI
         run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
         
