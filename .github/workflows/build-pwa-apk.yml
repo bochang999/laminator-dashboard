@@ -105,18 +105,18 @@ jobs:
           npx cap copy android
           echo "✅ Assets copied successfully"
           
-      - name: Update Android Gradle Plugin to 8.7.2
+      - name: Update Android Gradle Plugin to 8.6.1 (Latest Stable)
         run: |
-          echo "🔧 Updating Android Gradle Plugin to 8.7.2 for Capacitor 7..."
+          echo "🔧 Updating Android Gradle Plugin to 8.6.1 for Capacitor 7..."
           cd android
           
-          # Update project-level build.gradle for AGP 8.7.2
+          # Update project-level build.gradle for AGP 8.6.1
           cat > build.gradle << 'EOF'
           // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
           plugins {
-              id 'com.android.application' version '8.7.2' apply false
-              id 'com.android.library' version '8.7.2' apply false
+              id 'com.android.application' version '8.6.1' apply false
+              id 'com.android.library' version '8.6.1' apply false
               id 'com.google.gms.google-services' version '4.4.2' apply false
           }
 
@@ -129,7 +129,7 @@ jobs:
               delete rootProject.buildDir
           }
           EOF
-          echo "✅ Android Gradle Plugin updated to 8.7.2"
+          echo "✅ Android Gradle Plugin updated to 8.6.1 (Latest Stable)"
           
       - name: Setup Android Keystore
         run: |
@@ -249,7 +249,7 @@ jobs:
           body: |
             # 🎛️ ラミオペ・ダッシュボード v2.16 (Capacitor 7 + API 35)
             
-            **🚀 VANILLA_ICE_CREAM 問題完全解決版** - Capacitor 7 + Android API 35 + AGP 8.7.2
+            **🚀 VANILLA_ICE_CREAM 問題完全解決版** - Capacitor 7 + Android API 35 + AGP 8.6.1
             
             ## 📥 インストール方法
             1. ⬇️ APKファイルをダウンロード
@@ -267,13 +267,13 @@ jobs:
             ## 🔧 技術仕様
             - **ビルド環境**: Ubuntu Latest + Node.js 20 LTS + Java 21
             - **フレームワーク**: Capacitor 7.0.0 + Android API 35
-            - **ビルドツール**: Android Gradle Plugin 8.7.2 + Gradle 8.9
+            - **ビルドツール**: Android Gradle Plugin 8.6.1 + Gradle 8.11
             - **署名方式**: 自動キーストア管理 + 一貫性保証
             - **対応OS**: Android 7.0以上推奨
             
             ## 🎯 技術的改善点
             - ✅ **VANILLA_ICE_CREAM エラー根本解決**: Capacitor 7 + API 35 公式要件準拠
-            - ✅ **最新ビルドツール**: AGP 8.7.2 + Java 21 + Node.js 20 LTS
+            - ✅ **最新ビルドツール**: AGP 8.6.1 (最新安定版) + Java 21 + Node.js 20 LTS
             - ✅ **依存関係明示化**: package.json でCapacitor 7依存関係完全管理
             - ✅ **エラーハンドリング強化**: 段階的失敗検出とログ出力改善
             
