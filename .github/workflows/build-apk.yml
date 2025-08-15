@@ -191,40 +191,40 @@ EOF
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.VERSION_TAG }}
-          name: 🎛️ ラミオペ・ダッシュボード ${{ env.VERSION_TAG }}
+          name: Laminator Dashboard ${{ env.VERSION_TAG }}
           files: ${{ env.APK_FILE }}
           body: |
-            # 🎛️ ラミオペ・ダッシュボード ${{ env.VERSION_TAG }}
+            # Laminator Dashboard ${{ env.VERSION_TAG }}
             
-            **🚀 エファメラルCapacitor方式による安定ビルド**
+            **Ephemeral Capacitor Build - Stable Release**
             
-            ## 📥 インストール方法
-            1. ⬇️ APKファイルをダウンロード
-            2. 🔓 Android端末で「不明なソースからのインストール」を許可  
-            3. 📱 APKファイルをタップしてインストール
+            ## Installation Instructions
+            1. Download the APK file
+            2. Enable "Install from Unknown Sources" on your Android device  
+            3. Tap the APK file to install
             
-            ## ✨ Ver.2.16 全機能搭載
-            - ⏰ **時間計算機** - 生産時間・終了時刻予測
-            - 🎞️ **フィルムセッション管理** - 消費量シミュレーション  
-            - 📋 **ジョブ管理** - リアルタイム進捗追跡
-            - 📊 **レポート生成** - 作業効率分析
-            - 🌐 **PWA対応** - オフライン動作・ホーム画面追加
+            ## Ver.2.16 Features
+            - **Time Calculator** - Production time and completion prediction
+            - **Film Session Management** - Consumption simulation  
+            - **Job Management** - Real-time progress tracking
+            - **Report Generation** - Work efficiency analysis
+            - **PWA Support** - Offline operation and home screen installation
             
-            ## 🔧 技術仕様
-            - **ビルド方式**: Ephemeral Capacitor (CI内初期化)
-            - **フレームワーク**: Capacitor 7 + Android API 35
-            - **環境**: Node.js 20 + Java 21 + AGP 8.5.2
-            - **対応OS**: Android 7.0以上推奨
+            ## Technical Specifications
+            - **Build Method**: Ephemeral Capacitor (CI initialization)
+            - **Framework**: Capacitor 7 + Android API 35
+            - **Environment**: Node.js 20 + Java 21 + AGP 8.5.2
+            - **Compatibility**: Android 7.0+ recommended
             
-            ## 🎯 技術的改善
-            - ✅ **設定競合問題解決**: 毎回クリーン初期化によるエラー回避
-            - ✅ **webDir問題解決**: www/ディレクトリ標準化
-            - ✅ **API 35対応**: VANILLA_ICE_CREAM完全対応
-            - ✅ **安定ビルドプロセス**: エラーハンドリング強化
+            ## Technical Improvements
+            - **Configuration Conflicts Resolved**: Clean initialization prevents errors
+            - **webDir Issues Fixed**: Standardized directory structure
+            - **API 35 Support**: Full VANILLA_ICE_CREAM compatibility
+            - **Stable Build Process**: Enhanced error handling
             
             ---
-            🤖 **自動ビルド**: GitHub Actions (Ephemeral-Capacitor-Stable)  
-            🏗️ **ビルド番号**: ${{ github.run_number }}  
-            📅 **ビルド日時**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            **Auto Build**: GitHub Actions (Ephemeral-Capacitor-Stable)  
+            **Build Number**: ${{ github.run_number }}  
+            **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
