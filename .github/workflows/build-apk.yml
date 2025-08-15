@@ -1,0 +1,105 @@
+name: Build Laminator Dashboard APK (Ephemeral Capacitor)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_VERSION: '20'
+      JAVA_VERSION: '21'          # Capacitor 7 は JDK 21 推奨
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
+      APP_ID: com.bochang.laminator
+      APP_NAME: Laminator Dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Setup Android SDK
+        run: |
+          mkdir -p "$ANDROID_SDK_ROOT"
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdtools.zip
+          unzip -q cmdtools.zip -d "$ANDROID_SDK_ROOT"/cmdline-tools
+          mv "$ANDROID_SDK_ROOT"/cmdline-tools/cmdline-tools "$ANDROID_SDK_ROOT"/cmdline-tools/latest
+          yes | "$ANDROID_SDK_ROOT"/cmdline-tools/latest/bin/sdkmanager --licenses
+          "$ANDROID_SDK_ROOT"/cmdline-tools/latest/bin/sdkmanager \
+            "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm i; fi
+          # Capacitor一式をCI内だけで導入（リポジトリは汚さない）
+          npm i -D @capacitor/cli@7 @capacitor/android@7
+          npm i @capacitor/core@7
+
+      - name: Detect webDir (where index.html lives)
+        id: detect
+        shell: bash
+        run: |
+          for d in dist build www public . ; do
+            if [ -f "$d/index.html" ]; then
+              echo "webdir=$d" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          done
+          echo "::error::index.html の場所が見つかりません（dist/build/www/public/直下 or repo root を想定）"
+          exit 1
+
+      - name: Generate capacitor.config.ts
+        run: |
+          cat > capacitor.config.ts <<'EOF'
+          import type { CapacitorConfig } from '@capacitor/cli';
+          const config: CapacitorConfig = {
+            appId: process.env.APP_ID || '${{ env.APP_ID }}',
+            appName: process.env.APP_NAME || '${{ env.APP_NAME }}',
+            webDir: '${{ steps.detect.outputs.webdir }}',
+            server: { androidScheme: 'https' }
+          };
+          export default config;
+          EOF
+
+      - name: Init & Add Android (idempotent)
+        run: |
+          npx cap doctor || true
+          # init は config.ts があればスキップしてOK。念のため非対話で叩くが失敗しても続行
+          npx cap init "${{ env.APP_NAME }}" "${{ env.APP_ID }}" --web-dir="${{ steps.detect.outputs.webdir }}" || true
+          test -d android || npx cap add android
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Force compileSdk/targetSdk 35
+        run: |
+          # Capacitor標準の variables.gradle に対して 35 を明示
+          if [ -f android/variables.gradle ]; then
+            sed -i 's/compileSdkVersion = [0-9][0-9]*/compileSdkVersion = 35/' android/variables.gradle || true
+            sed -i 's/targetSdkVersion = [0-9][0-9]*/targetSdkVersion = 35/' android/variables.gradle || true
+          fi
+
+      - name: Build APK (release, unsigned)
+        run: |
+          cd android
+          ./gradlew assembleRelease --stacktrace
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-unsigned
+          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
