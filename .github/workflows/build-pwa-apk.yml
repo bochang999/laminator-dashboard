@@ -65,6 +65,9 @@ jobs:
             bundledWebRuntime: false,
             android: {
               allowMixedContent: true,
+              minSdkVersion: 21,
+              compileSdkVersion: 35,
+              targetSdkVersion: 35,
             },
           };
           export default config;
