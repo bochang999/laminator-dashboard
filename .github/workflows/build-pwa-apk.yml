@@ -27,6 +27,11 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         
+      - name: Accept Android SDK Licenses
+        run: |
+          echo "🔑 Accepting Android SDK licenses automatically..."
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
+        
       - name: Install Capacitor CLI
         run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
         
@@ -67,43 +72,40 @@ jobs:
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "📱 Using production keystore from GitHub Secrets"
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+            echo "KEYSTORE_FILE=release.keystore" >> $GITHUB_ENV
+            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
             echo "✅ Production keystore created"
           else
-            echo "🔧 Creating debug keystore for development"
-            cd android
-            keytool -genkey -v -keystore app/debug.keystore \
-              -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass android -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US"
-            echo "✅ Debug keystore created for development"
+            echo "⚠️ KEYSTORE_BASE64 secret not found. App will be unsigned."
           fi
 
       - name: Configure Build for Signing
         run: |
-          cd android
-          echo "🔧 Adding signing configuration to build.gradle..."
-          cat >> app/build.gradle << 'EOF'
-          
-          android {
-              signingConfigs {
-                  release {
-                      storeFile file('${{ secrets.KEYSTORE_BASE64 && 'release.keystore' || 'debug.keystore' }}')
-                      storePassword '${{ secrets.KEYSTORE_PASSWORD || 'android' }}'
-                      keyAlias '${{ secrets.KEY_ALIAS || 'androiddebugkey' }}'
-                      keyPassword '${{ secrets.KEY_PASSWORD || 'android' }}'
-                  }
-              }
-              buildTypes {
-                  release {
-                      signingConfig signingConfigs.release
-                      minifyEnabled false
-                      proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-                  }
-              }
-          }
-          EOF
-          echo "📄 Updated build.gradle content:"
-          cat app/build.gradle
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "🔧 Adding signing configuration to build.gradle..."
+            cd android
+            cat >> app/build.gradle << 'EOF'
+
+            android {
+                signingConfigs {
+                    release {
+                        storeFile file(System.getenv("KEYSTORE_FILE"))
+                        storePassword System.getenv("KEYSTORE_PASSWORD")
+                        keyAlias System.getenv("KEY_ALIAS")
+                        keyPassword System.getenv("KEY_PASSWORD")
+                    }
+                }
+                buildTypes {
+                    release {
+                        signingConfig signingConfigs.release
+                    }
+                }
+            }
+            EOF
+            echo "📄 Updated build.gradle with signing configuration"
+          fi
 
       - name: Build Android APK
         run: |
