@@ -49,57 +49,173 @@ jobs:
           npm i -D @capacitor/cli@7 @capacitor/android@7
           npm i @capacitor/core@7
 
-      - name: Detect webDir (where index.html lives)
-        id: detect
-        shell: bash
+      - name: Create Web Build Directory  
         run: |
-          for d in dist build www public . ; do
-            if [ -f "$d/index.html" ]; then
-              echo "webdir=$d" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-          done
-          echo "::error::index.html の場所が見つかりません（dist/build/www/public/直下 or repo root を想定）"
-          exit 1
+          echo "📂 Creating proper web build directory for Capacitor..."
+          mkdir -p www
+          cp *.html *.css *.js *.json *.png www/ 2>/dev/null || true
+          echo "✅ Web assets copied to www/ directory"
 
-      - name: Generate capacitor.config.ts
+      - name: Clean Capacitor Setup (Ephemeral Init)
         run: |
-          cat > capacitor.config.ts <<'EOF'
-          import type { CapacitorConfig } from '@capacitor/cli';
-          const config: CapacitorConfig = {
-            appId: process.env.APP_ID || '${{ env.APP_ID }}',
-            appName: process.env.APP_NAME || '${{ env.APP_NAME }}',
-            webDir: '${{ steps.detect.outputs.webdir }}',
-            server: { androidScheme: 'https' }
-          };
-          export default config;
-          EOF
+          echo "🧹 Ensuring clean Capacitor initialization state..."
+          rm -rf capacitor.config.* android ios electron
+          echo "✅ Previous Capacitor artifacts removed"
 
-      - name: Init & Add Android (idempotent)
+      - name: Initialize Capacitor (Fresh Start)
         run: |
-          npx cap doctor || true
-          # init は config.ts があればスキップしてOK。念のため非対話で叩くが失敗しても続行
-          npx cap init "${{ env.APP_NAME }}" "${{ env.APP_ID }}" --web-dir="${{ steps.detect.outputs.webdir }}" || true
-          test -d android || npx cap add android
+          echo "⚡ Fresh Capacitor initialization without config conflicts..."
+          # Capacitor初期化（設定ファイルなしで開始）
+          npx cap init "${{ env.APP_NAME }}" "${{ env.APP_ID }}" --web-dir="www"
+          
+          echo "🔧 Adding Android platform..."
+          npx cap add android
+          
+          echo "✅ Capacitor initialization completed successfully"
 
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Force compileSdk/targetSdk 35
+      - name: Configure Android API 35 Settings
         run: |
-          # Capacitor標準の variables.gradle に対して 35 を明示
+          echo "📱 Configuring Android for API 35 (VANILLA_ICE_CREAM)..."
+          
+          # variables.gradle でAPI 35設定
           if [ -f android/variables.gradle ]; then
-            sed -i 's/compileSdkVersion = [0-9][0-9]*/compileSdkVersion = 35/' android/variables.gradle || true
-            sed -i 's/targetSdkVersion = [0-9][0-9]*/targetSdkVersion = 35/' android/variables.gradle || true
+            echo "🔧 Updating variables.gradle for API 35..."
+            cat > android/variables.gradle <<'EOF'
+ext {
+    minSdkVersion = 24
+    compileSdkVersion = 35
+    targetSdkVersion = 35
+    androidxActivityVersion = '1.9.2'
+    androidxAppCompatVersion = '1.7.0'
+    androidxCoordinatorLayoutVersion = '1.2.0'
+    androidxCoreVersion = '1.15.0'
+    androidxFragmentVersion = '1.8.4'
+    coreSplashScreenVersion = '1.0.1'
+    androidxWebkitVersion = '1.12.1'
+    junitVersion = '4.13.2'
+    androidxJunitVersion = '1.2.1'
+    androidxEspressoCoreVersion = '3.6.1'
+    cordovaAndroidVersion = '10.1.1'
+}
+EOF
+            echo "✅ variables.gradle configured for API 35"
+          fi
+          
+          # build.gradle の Android Gradle Plugin バージョン設定
+          if [ -f android/build.gradle ]; then
+            echo "🔧 Configuring AGP version for API 35 compatibility..."
+            sed -i "s/id 'com.android.application' version '[^']*'/id 'com.android.application' version '8.5.2'/" android/build.gradle
+            sed -i "s/id 'com.android.library' version '[^']*'/id 'com.android.library' version '8.5.2'/" android/build.gradle
+            echo "✅ AGP configured for API 35 compatibility"
           fi
 
-      - name: Build APK (release, unsigned)
+      - name: Build APK with Enhanced Error Handling
         run: |
+          echo "🏗️ Building APK with Capacitor 7 + API 35..."
           cd android
-          ./gradlew assembleRelease --stacktrace
+          
+          echo "🧹 Cleaning previous builds..."
+          ./gradlew clean
+          
+          echo "📋 Gradle version info..."
+          ./gradlew --version
+          
+          echo "🔨 Building release APK..."
+          ./gradlew assembleRelease --stacktrace --info > ../build.log 2>&1 || {
+            echo "❌ Build failed. Analyzing error log..."
+            echo ""
+            echo "🔍 FIRST 20 LINES:"
+            head -20 ../build.log
+            echo ""
+            echo "🔍 ERROR SECTIONS:"
+            grep -A 5 -B 5 -i "error\|failed\|exception" ../build.log | head -30
+            echo ""
+            echo "🔍 LAST 20 LINES:"
+            tail -20 ../build.log
+            exit 1
+          }
+          
+          echo "✅ APK build completed successfully"
 
-      - name: Upload APK artifact
+      - name: Package and Release APK
+        run: |
+          echo "📦 Searching for built APK files..."
+          find android -name "*.apk" -type f || {
+            echo "❌ No APK files found"
+            echo "📂 Build outputs structure:"
+            find android/app/build -type f 2>/dev/null || echo "Build directory not found"
+            exit 1
+          }
+          
+          # APKファイルの場所を特定
+          APK_PATH=$(find android/app/build/outputs/apk -name "*.apk" | head -1)
+          if [ -n "$APK_PATH" ]; then
+            TIMESTAMP=$(date +%Y%m%d-%H%M)  
+            VERSION="v2.16-capacitor7-${TIMESTAMP}"
+            NEW_NAME="LaminatorDashboard-${VERSION}.apk"
+            
+            echo "✅ Found APK: $APK_PATH"
+            echo "📦 Renaming to: $NEW_NAME"
+            cp "$APK_PATH" "$NEW_NAME"
+            
+            echo "📊 APK Information:"
+            ls -lh "$NEW_NAME"
+            
+            echo "APK_FILE=$NEW_NAME" >> $GITHUB_ENV
+            echo "VERSION_TAG=$VERSION" >> $GITHUB_ENV
+          else
+            echo "❌ APK file not found in expected location"
+            exit 1
+          fi
+
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-unsigned
-          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+          name: ${{ env.APK_FILE }}
+          path: ${{ env.APK_FILE }}
+
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION_TAG }}
+          name: 🎛️ ラミオペ・ダッシュボード ${{ env.VERSION_TAG }}
+          files: ${{ env.APK_FILE }}
+          body: |
+            # 🎛️ ラミオペ・ダッシュボード ${{ env.VERSION_TAG }}
+            
+            **🚀 エファメラルCapacitor方式による安定ビルド**
+            
+            ## 📥 インストール方法
+            1. ⬇️ APKファイルをダウンロード
+            2. 🔓 Android端末で「不明なソースからのインストール」を許可  
+            3. 📱 APKファイルをタップしてインストール
+            
+            ## ✨ Ver.2.16 全機能搭載
+            - ⏰ **時間計算機** - 生産時間・終了時刻予測
+            - 🎞️ **フィルムセッション管理** - 消費量シミュレーション  
+            - 📋 **ジョブ管理** - リアルタイム進捗追跡
+            - 📊 **レポート生成** - 作業効率分析
+            - 🌐 **PWA対応** - オフライン動作・ホーム画面追加
+            
+            ## 🔧 技術仕様
+            - **ビルド方式**: Ephemeral Capacitor (CI内初期化)
+            - **フレームワーク**: Capacitor 7 + Android API 35
+            - **環境**: Node.js 20 + Java 21 + AGP 8.5.2
+            - **対応OS**: Android 7.0以上推奨
+            
+            ## 🎯 技術的改善
+            - ✅ **設定競合問題解決**: 毎回クリーン初期化によるエラー回避
+            - ✅ **webDir問題解決**: www/ディレクトリ標準化
+            - ✅ **API 35対応**: VANILLA_ICE_CREAM完全対応
+            - ✅ **安定ビルドプロセス**: エラーハンドリング強化
+            
+            ---
+            🤖 **自動ビルド**: GitHub Actions (Ephemeral-Capacitor-Stable)  
+            🏗️ **ビルド番号**: ${{ github.run_number }}  
+            📅 **ビルド日時**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
