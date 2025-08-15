@@ -32,11 +32,11 @@ jobs:
           echo "🔑 Accepting Android SDK licenses automatically..."
           yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
         
-      - name: Update Android SDK to API 35
+      - name: Update Android SDK to API 34 (Stable)
         run: |
           set -e
-          echo "📱 Updating Android SDK to support API 35 (VANILLA_ICE_CREAM)..."
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+          echo "📱 Updating Android SDK to support API 34 (Capacitor 6 Stable)..."
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-34" "build-tools;34.0.0"
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --update
           echo "✅ Android SDK updated successfully"
         
@@ -66,8 +66,8 @@ jobs:
             android: {
               allowMixedContent: true,
               minSdkVersion: 21,
-              compileSdkVersion: 35,
-              targetSdkVersion: 35,
+              compileSdkVersion: 34,
+              targetSdkVersion: 34,
             },
           };
           export default config;
@@ -117,7 +117,7 @@ jobs:
           cat >> app/build.gradle << 'EOF'
 
           android {
-              compileSdkVersion 35
+              compileSdkVersion 34
               signingConfigs {
                   release {
                       storeFile file(System.getenv("KEYSTORE_FILE"))
