@@ -87,23 +87,23 @@ jobs:
             echo "🔧 Adding signing configuration to build.gradle..."
             cd android
             cat >> app/build.gradle << 'EOF'
-
-android {
-    signingConfigs {
-        release {
-            storeFile file(System.getenv("KEYSTORE_FILE"))
-            storePassword System.getenv("KEYSTORE_PASSWORD")
-            keyAlias System.getenv("KEY_ALIAS")
-            keyPassword System.getenv("KEY_PASSWORD")
-        }
-    }
-    buildTypes {
-        release {
-            signingConfig signingConfigs.release
-        }
-    }
-}
-EOF
+            
+            android {
+                signingConfigs {
+                    release {
+                        storeFile file(System.getenv("KEYSTORE_FILE"))
+                        storePassword System.getenv("KEYSTORE_PASSWORD")
+                        keyAlias System.getenv("KEY_ALIAS")
+                        keyPassword System.getenv("KEY_PASSWORD")
+                    }
+                }
+                buildTypes {
+                    release {
+                        signingConfig signingConfigs.release
+                    }
+                }
+            }
+            EOF
             echo "📄 Updated build.gradle with signing configuration"
           fi
 
