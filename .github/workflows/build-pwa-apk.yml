@@ -105,14 +105,22 @@ jobs:
           npx cap copy android
           echo "✅ Assets copied successfully"
           
-      - name: Update Android Gradle Plugin to 8.5.2 (Verified Compatible)
+      - name: Fix Plugin Repository & Update AGP 8.5.2 (pluginManagement)
         run: |
           echo "🔧 Emergency downgrade to AGP 8.5.2 for GitHub Actions compatibility..."
           cd android
           
-          # Update project-level build.gradle for AGP 8.5.2 (GitHub Actions verified)
+          # Update project-level build.gradle with pluginManagement (Plugin Repository Fix)
           cat > build.gradle << 'EOF'
           // Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+          pluginManagement {
+              repositories {
+                  gradlePluginPortal()   // Essential for plugin resolution
+                  google()
+                  mavenCentral()
+              }
+          }
 
           plugins {
               id 'com.android.application' version '8.5.2' apply false
