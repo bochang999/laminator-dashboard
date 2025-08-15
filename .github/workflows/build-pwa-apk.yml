@@ -238,10 +238,15 @@ jobs:
           
           echo "🔨 Building release APK with enhanced error handling..."
           ./gradlew assembleRelease --stacktrace --info --debug > build.log 2>&1 || {
-            echo "❌ Build failed. Showing last 100 lines of build log:"
-            tail -100 build.log
-            echo "🔍 Searching for specific errors:"
-            grep -i "error\|exception\|failed" build.log | tail -20
+            echo "❌ Build failed. Analyzing build log comprehensively..."
+            echo "🔍 FIRST 30 LINES (Root Cause Detection):"
+            head -30 build.log
+            echo ""
+            echo "🔍 ERROR/FAILURE SECTIONS (Specific Issues):"
+            grep -A 3 -B 3 -i "FAILURE\|BUILD FAILED\|Error\|Exception" build.log | head -30
+            echo ""
+            echo "🔍 LAST 30 LINES (Stack Trace End):"
+            tail -30 build.log
             exit 1
           }
           
