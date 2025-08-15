@@ -82,30 +82,46 @@ jobs:
           fi
 
       - name: Configure Build for Signing
+        # GitHub Actions ステップレベルの条件制御でHereDoc構文エラーを完全回避
+        if: env.KEYSTORE_B64_DATA != ''
+        env:
+          # secretsを環境変数にマッピングしてif条件で安全に参照
+          KEYSTORE_B64_DATA: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_FILE: release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "🔧 Adding signing configuration to build.gradle..."
-            cd android
-            cat >> app/build.gradle << 'EOF'
-            
-            android {
-                signingConfigs {
-                    release {
-                        storeFile file(System.getenv("KEYSTORE_FILE"))
-                        storePassword System.getenv("KEYSTORE_PASSWORD")
-                        keyAlias System.getenv("KEY_ALIAS")
-                        keyPassword System.getenv("KEY_PASSWORD")
-                    }
-                }
-                buildTypes {
-                    release {
-                        signingConfig signingConfigs.release
-                    }
-                }
-            }
-            EOF
-            echo "📄 Updated build.gradle with signing configuration"
-          fi
+          # エラー発生時に即座にスクリプトを停止
+          set -e -o pipefail
+
+          echo "🔑 Keystore secret is present. Decoding and writing to file..."
+          cd android
+          # Base64シークレットをデコードしてキーストアファイルを作成
+          echo -n "$KEYSTORE_B64_DATA" | base64 --decode > app/$KEYSTORE_FILE
+          echo "✅ Keystore file created at android/app/$KEYSTORE_FILE"
+
+          echo "🔧 Adding signing configuration to build.gradle..."
+          # Gradleが環境変数を読み取れる形式で署名設定を追記
+          cat >> app/build.gradle << 'EOF'
+
+          android {
+              signingConfigs {
+                  release {
+                      storeFile file(System.getenv("KEYSTORE_FILE"))
+                      storePassword System.getenv("KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("KEY_ALIAS")
+                      keyPassword System.getenv("KEY_PASSWORD")
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          EOF
+          echo "📄 Updated build.gradle with signing configuration"
 
       - name: Build Android APK
         run: |
