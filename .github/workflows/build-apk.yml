@@ -11,10 +11,10 @@ jobs:
 
     env:
       NODE_VERSION: '20'
-      JAVA_VERSION: '21'          # Capacitor 7 は JDK 21 推奨
+      JAVA_VERSION: '21'          # Capacitor 7 requires JDK 21
       ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
       APP_ID: com.bochang.laminator
-      APP_NAME: Laminator Dashboard
+      APP_NAME: 'Laminator Dashboard'
 
     steps:
       - name: Checkout
@@ -60,7 +60,7 @@ jobs:
               exit 0
             fi
           done
-          echo "::error::index.html が見つかりません"
+          echo "::error::index.html not found in any expected directory"
           exit 1
 
       - name: Clean Capacitor Setup (Ephemeral Init)
@@ -74,7 +74,7 @@ jobs:
           echo "⚡ Fresh Capacitor initialization without config conflicts..."
           echo "📂 Using webDir: ${{ steps.detect.outputs.webdir }}"
           
-          # Capacitor初期化（検出されたwebDirを使用）
+          # Initialize Capacitor with detected webDir
           npx cap init "${{ env.APP_NAME }}" "${{ env.APP_ID }}" --web-dir="${{ steps.detect.outputs.webdir }}"
           
           echo "🔧 Adding Android platform..."
