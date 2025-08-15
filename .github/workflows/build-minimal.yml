@@ -39,9 +39,11 @@ jobs:
         run: |
           npm install @capacitor/cli@7 @capacitor/android@7 @capacitor/core@7
 
-      - name: Initialize Capacitor
+      - name: Create webDir and Initialize Capacitor
         run: |
-          npx cap init "Laminator Dashboard" "com.bochang.laminator" --web-dir="."
+          mkdir -p www
+          cp *.html *.css *.js *.json *.png www/ 2>/dev/null || true
+          npx cap init "Laminator Dashboard" "com.bochang.laminator" --web-dir="www"
           npx cap add android
 
       - name: Build APK
