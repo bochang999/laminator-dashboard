@@ -172,12 +172,24 @@ jobs:
           echo -n "$KEYSTORE_B64_DATA" | base64 --decode > app/$KEYSTORE_FILE
           echo "✅ Keystore file created at android/app/$KEYSTORE_FILE"
 
-          echo "🔧 Adding Capacitor 7 + API 35 signing configuration..."
-          cat >> app/build.gradle << 'EOF'
+          echo "🔧 Creating unified Capacitor 7 + API 35 build.gradle (重複android{}ブロック解決)..."
+          cat > app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+          }
 
           android {
               compileSdkVersion 35
               namespace "com.bochang.laminator"
+              
+              defaultConfig {
+                  applicationId "com.bochang.laminator"
+                  minSdkVersion 23
+                  targetSdkVersion 35
+                  versionCode 1
+                  versionName "2.16"
+                  testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+              }
               
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
@@ -192,6 +204,7 @@ jobs:
                       keyPassword System.getenv("KEY_PASSWORD")
                   }
               }
+              
               buildTypes {
                   release {
                       minifyEnabled true
@@ -200,8 +213,17 @@ jobs:
                   }
               }
           }
+
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.7.0'
+              implementation 'androidx.core:core:1.15.0'
+              implementation 'com.capacitor:core:7.0.0'
+              testImplementation 'junit:junit:4.13.2'
+              androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+              androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
+          }
           EOF
-          echo "✅ Capacitor 7 + API 35 build configuration complete"
+          echo "✅ Capacitor 7 + API 35 unified build configuration complete"
 
       - name: Build Android APK with Capacitor 7
         run: |
