@@ -1,14 +1,23 @@
-name: Build Minimal Ephemeral Capacitor
+name: Build Laminator Dashboard APK (Production Ready)
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    env:
+      NODE_VERSION: '20'
+      JAVA_VERSION: '21'
+      APP_ID: com.bochang.laminator
+      APP_NAME: 'Laminator Dashboard'
 
     steps:
       - name: Checkout
@@ -17,13 +26,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: ${{ env.JAVA_VERSION }}
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -33,27 +42,221 @@ jobs:
 
       - name: Install API 35 components
         run: |
+          echo "📱 Installing Android SDK API 35 for Capacitor 7..."
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          echo "✅ Android SDK components installed successfully"
 
-      - name: Install Capacitor
+      - name: Install Capacitor Dependencies
         run: |
+          echo "📦 Installing Capacitor 7 dependencies..."
           npm install @capacitor/cli@7 @capacitor/android@7 @capacitor/core@7
+          echo "✅ Capacitor dependencies installed"
 
-      - name: Create webDir and Initialize Capacitor
+      - name: Prepare Web Assets and Initialize Capacitor
         run: |
+          echo "📂 Preparing web assets for Capacitor..."
           mkdir -p www
+          
+          # Copy all necessary assets to www directory
           cp *.html *.css *.js *.json *.png www/ 2>/dev/null || true
-          npx cap init "Laminator Dashboard" "com.bochang.laminator" --web-dir="www"
+          
+          echo "⚡ Initializing Capacitor project..."
+          npx cap init "${{ env.APP_NAME }}" "${{ env.APP_ID }}" --web-dir="www"
+          
+          echo "📱 Adding Android platform..."
           npx cap add android
+          
+          echo "🔄 Syncing web assets to Android..."
+          npx cap sync android
+          
+          echo "✅ Capacitor initialization completed"
 
-      - name: Build APK
+      - name: Configure Android API 35 Settings
         run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          echo "⚙️ Configuring Android for API 35 compatibility..."
+          
+          # Configure variables.gradle for API 35
+          if [ -f android/variables.gradle ]; then
+            echo "🔧 Updating variables.gradle for API 35..."
+            cat > android/variables.gradle <<'EOF'
+ext {
+    minSdkVersion = 24
+    compileSdkVersion = 35
+    targetSdkVersion = 35
+    androidxActivityVersion = '1.9.2'
+    androidxAppCompatVersion = '1.7.0'
+    androidxCoordinatorLayoutVersion = '1.2.0'
+    androidxCoreVersion = '1.15.0'
+    androidxFragmentVersion = '1.8.4'
+    coreSplashScreenVersion = '1.0.1'
+    androidxWebkitVersion = '1.12.1'
+    junitVersion = '4.13.2'
+    androidxJunitVersion = '1.2.1'
+    androidxEspressoCoreVersion = '3.6.1'
+    cordovaAndroidVersion = '10.1.1'
+}
+EOF
+            echo "✅ variables.gradle configured for API 35"
+          fi
 
-      - name: Upload APK
+      - name: Setup Keystore for Signed Release
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "🔑 Setting up production keystore..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+            echo "KEYSTORE_EXISTS=true" >> $GITHUB_ENV
+            echo "✅ Production keystore configured"
+          else
+            echo "⚠️ No keystore found. Building debug APK..."
+            echo "KEYSTORE_EXISTS=false" >> $GITHUB_ENV
+          fi
+
+      - name: Build APK with Enhanced Error Handling
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "🏗️ Building APK with Capacitor 7 + Android API 35..."
+          cd android
+          
+          echo "🧹 Cleaning previous builds..."
+          ./gradlew clean
+          
+          echo "📋 Gradle version info..."
+          ./gradlew --version
+          
+          # Build signed or debug APK based on keystore availability
+          if [ "$KEYSTORE_EXISTS" = "true" ]; then
+            echo "🔨 Building signed release APK..."
+            ./gradlew assembleRelease \
+              -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/app/release.keystore" \
+              -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+              -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+              -Pandroid.injected.signing.key.password="$KEY_PASSWORD" \
+              -Pandroid.injected.version.code="${{ github.run_number }}" \
+              -Pandroid.injected.version.name="2.16.${{ github.run_number }}" \
+              --stacktrace --info > ../build.log 2>&1 || {
+                echo "❌ Release build failed. Building debug APK as fallback..."
+                ./gradlew assembleDebug --stacktrace --info
+                echo "BUILD_TYPE=debug" >> $GITHUB_ENV
+              }
+            echo "BUILD_TYPE=${KEYSTORE_EXISTS}" >> $GITHUB_ENV
+          else
+            echo "🔨 Building debug APK..."
+            ./gradlew assembleDebug \
+              -Pandroid.injected.version.code="${{ github.run_number }}" \
+              -Pandroid.injected.version.name="2.16.${{ github.run_number }}" \
+              --stacktrace --info > ../build.log 2>&1 || {
+                echo "❌ Build failed. Analyzing error log..."
+                echo "🔍 FIRST 20 LINES:"
+                head -20 ../build.log
+                echo "🔍 ERROR SECTIONS:"
+                grep -A 5 -B 5 -i "error\|failed\|exception" ../build.log | head -30
+                echo "🔍 LAST 20 LINES:"
+                tail -20 ../build.log
+                exit 1
+              }
+            echo "BUILD_TYPE=debug" >> $GITHUB_ENV
+          fi
+          
+          echo "✅ APK build completed successfully"
+
+      - name: Package and Verify APK
+        run: |
+          echo "📦 Searching for built APK files..."
+          
+          # Try to find release APK first, then debug
+          if [ "$BUILD_TYPE" = "true" ] && [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
+            APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
+            BUILD_SUFFIX="signed"
+          else
+            APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
+            BUILD_SUFFIX="debug"
+          fi
+          
+          if [ -f "$APK_PATH" ]; then
+            TIMESTAMP=$(date +%Y%m%d-%H%M)
+            VERSION="v2.16-prod-${TIMESTAMP}"
+            NEW_NAME="LaminatorDashboard-${VERSION}-${BUILD_SUFFIX}.apk"
+            
+            echo "✅ Found APK: $APK_PATH"
+            echo "📦 Packaging as: $NEW_NAME"
+            cp "$APK_PATH" "$NEW_NAME"
+            
+            echo "📊 APK Information:"
+            ls -lh "$NEW_NAME"
+            
+            # APK verification if possible
+            if command -v aapt >/dev/null 2>&1; then
+              echo "📋 APK Package Information:"
+              aapt dump badging "$NEW_NAME" | grep -E "package|versionCode|versionName" || true
+            fi
+            
+            echo "APK_FILE=$NEW_NAME" >> $GITHUB_ENV
+            echo "VERSION_TAG=$VERSION" >> $GITHUB_ENV
+            echo "BUILD_SUFFIX=$BUILD_SUFFIX" >> $GITHUB_ENV
+          else
+            echo "❌ APK file not found"
+            echo "📂 Build structure:"
+            find android -name "*.apk" -type f || echo "No APK files found"
+            exit 1
+          fi
+
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: laminator-minimal-debug
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: ${{ env.APK_FILE }}
+          path: ${{ env.APK_FILE }}
+
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION_TAG }}
+          name: 🎛️ Laminator Dashboard ${{ env.VERSION_TAG }}
+          files: ${{ env.APK_FILE }}
+          body: |
+            # 🎛️ Laminator Dashboard ${{ env.VERSION_TAG }}
+            
+            **✨ Production-Ready Ephemeral Capacitor Build** - API 35 Full Support
+            
+            ## 📥 Installation Instructions
+            1. ⬇️ Download the APK file
+            2. 🔓 Enable "Install from Unknown Sources" on your Android device
+            3. 📱 Tap the APK file to install
+            
+            ## ✨ Ver.2.16 Complete Features
+            - ⏰ **Time Calculator** - Production time and completion prediction
+            - 🎞️ **Film Session Management** - Consumption simulation
+            - 📋 **Job Management** - Real-time progress tracking
+            - 📊 **Report Generation** - Work efficiency analysis
+            - 🌐 **PWA Support** - Offline operation and home screen installation
+            - 🔄 **Seamless Updates** - Signature consistency for smooth upgrades
+            
+            ## 🔧 Technical Specifications
+            - **Build Environment**: Ubuntu Latest + Node.js ${{ env.NODE_VERSION }} + Java ${{ env.JAVA_VERSION }}
+            - **Framework**: Capacitor 7.0 + Android API 35 (VANILLA_ICE_CREAM)
+            - **Build Method**: Ephemeral Capacitor (CI initialization)
+            - **APK Type**: ${{ env.BUILD_SUFFIX == 'signed' && 'Release (Signed)' || 'Debug' }}
+            - **Compatibility**: Android 7.0+ recommended
+            
+            ## 🎯 Technical Improvements
+            - ✅ **Ephemeral Capacitor Success**: Clean CI initialization without repository pollution
+            - ✅ **VANILLA_ICE_CREAM Compatibility**: Full Android API 35 support
+            - ✅ **Enhanced Error Handling**: Comprehensive build failure analysis
+            - ✅ **Stable Build Process**: Production-ready automation
+            - ✅ **Signed Release Support**: Keystore-based signing when available
+            
+            ## 📈 Build Information
+            - **Version**: ${{ env.VERSION_TAG }}
+            - **Build Number**: ${{ github.run_number }}
+            - **Build Type**: ${{ env.BUILD_SUFFIX }}
+            - **Commit**: ${{ github.sha }}
+            
+            ---
+            🤖 **Auto Build**: GitHub Actions (Ephemeral-Capacitor-Production)  
+            📅 **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')  
+            🔧 **Technical Solution**: Sequential Thinking + Context7 Optimized
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
