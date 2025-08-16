@@ -2005,6 +2005,12 @@ class LaminatorDashboard {
 
     // 勤務状況選択後のCSV出力・リセット処理
     executeEndDayProcess(workStatus) {
+        // 1. 勤務状況の定義
+        const statusNames = {
+            '定時': '定時',
+            '残業': '残業',
+            '早上がり': '早上がり'
+        };
         
         // 2. CSVデータ生成
         const currentTime = new Date();
