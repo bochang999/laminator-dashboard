@@ -45,16 +45,6 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Generate App Icons and Splash Screen
-        run: |
-          echo "🎨 Generating app icons and splash screens..."
-          if [ -d "assets" ] && [ -f "assets/icon.png" ]; then
-            npx capacitor-assets generate --android
-            echo "✅ Icons and splash screens generated successfully"
-          else
-            echo "⚠️ No assets/icon.png found, skipping icon generation"
-          fi
-
       - name: Detect webDir (robust)
         id: detect
         run: |
