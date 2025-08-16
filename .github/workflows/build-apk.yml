@@ -12,7 +12,6 @@ jobs:
     env:
       NODE_VERSION: '20'
       JAVA_VERSION: '21'          # Capacitor 7 requires JDK 21
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
       APP_ID: com.bochang.laminator
       APP_NAME: 'Laminator Dashboard'
 
@@ -32,15 +31,16 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses >/dev/null
+
+      - name: Install API 35 components
         run: |
-          mkdir -p "$ANDROID_SDK_ROOT"
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-          curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdtools.zip
-          unzip -q cmdtools.zip -d "$ANDROID_SDK_ROOT"/cmdline-tools
-          mv "$ANDROID_SDK_ROOT"/cmdline-tools/cmdline-tools "$ANDROID_SDK_ROOT"/cmdline-tools/latest
-          yes | "$ANDROID_SDK_ROOT"/cmdline-tools/latest/bin/sdkmanager --licenses
-          "$ANDROID_SDK_ROOT"/cmdline-tools/latest/bin/sdkmanager \
-            "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          echo "📱 Installing Android SDK API 35 for Capacitor 7..."
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          echo "✅ Android SDK components installed successfully"
 
       - name: Install dependencies
         run: npm install
