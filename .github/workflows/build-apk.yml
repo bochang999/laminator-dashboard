@@ -55,6 +55,12 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: 🕵️ Analyze Installed Dependencies
+        run: |
+          echo "--- NPM Dependency Tree ---"
+          npm list
+          echo "--- End of NPM Dependency Tree ---"
+
       - name: Generate App Icons and Splash Screen
         run: npx @capacitor/assets generate --android
 
@@ -243,6 +249,21 @@ jobs:
           ls -lh "$FINAL_NAME"
           
           echo "APK_FILE=$FINAL_NAME" >> $GITHUB_ENV
+
+      - name: 🕵️ Analyze APK Contents
+        run: |
+          echo "--- Analyzing content of APK file ---"
+          APK_FILE=$(find . -name "lamidash_*.apk" | head -n 1)
+          if [ -f "$APK_FILE" ]; then
+            echo "📊 APK Contents Analysis for: $APK_FILE"
+            unzip -l "$APK_FILE"
+            echo ""
+            echo "📈 Top 20 largest files in APK:"
+            unzip -l "$APK_FILE" | sort -k1 -nr | head -n 20
+          else
+            echo "APK file not found for analysis."
+          fi
+          echo "--- End of APK Content Analysis ---"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
