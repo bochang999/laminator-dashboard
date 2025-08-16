@@ -1,0 +1,30 @@
+# Capacitor ignore file - 不要ファイルの除外設定
+# アイコン処理用の一時ファイル
+new_icon.png
+icon_transparent.png
+old_icon_backup.png
+simple_bg_removal.py
+process_new_icon.sh
+
+# Node.js開発ファイル
+package-lock.json
+package.json
+node_modules/
+
+# 開発用アイコンフォルダ
+icons/
+
+# Git関連
+.git/
+.gitignore
+.github/
+
+# 開発ログ
+devlog.md
+spec.md
+tasks.md
+requirements.md
+
+# 一時ファイル
+*.log
+*.tmp

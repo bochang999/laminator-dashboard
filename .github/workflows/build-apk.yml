@@ -99,8 +99,29 @@ jobs:
           
           echo "✅ Capacitor initialization completed successfully"
 
-      - name: Sync Capacitor
-        run: npx cap sync android
+      - name: Clean Development Files Before Sync
+        run: |
+          echo "🧹 Cleaning development files to reduce APK size..."
+          # 一時的に不要ファイルを移動
+          mkdir -p .temp_backup
+          mv new_icon.png .temp_backup/ 2>/dev/null || true
+          mv icon_transparent.png .temp_backup/ 2>/dev/null || true
+          mv old_icon_backup.png .temp_backup/ 2>/dev/null || true
+          mv package-lock.json .temp_backup/ 2>/dev/null || true
+          mv simple_bg_removal.py .temp_backup/ 2>/dev/null || true
+          mv process_new_icon.sh .temp_backup/ 2>/dev/null || true
+          mv icons/ .temp_backup/ 2>/dev/null || true
+          mv devlog.md .temp_backup/ 2>/dev/null || true
+          mv spec.md .temp_backup/ 2>/dev/null || true
+          mv tasks.md .temp_backup/ 2>/dev/null || true
+          mv requirements.md .temp_backup/ 2>/dev/null || true
+          echo "✅ Development files temporarily moved"
+
+      - name: Sync Capacitor (Optimized)
+        run: |
+          echo "⚡ Syncing Capacitor with reduced file set..."
+          npx cap sync android
+          echo "✅ Capacitor sync completed with optimized assets"
 
       - name: Configure Build Gradle for Command-line Version Injection
         run: |
