@@ -1,100 +1,245 @@
-# PWA-to-APK 自動ビルド成功のレシピ (Ephemeral Capacitor方式)
+# PWA → 署名付きAPK 最短リリースレシピ
 
-## 1. 基本戦略：Ephemeral Capacitor
+## 🎯 最短ルート概要
 
-このビルドプロセスの核心は「Ephemeral（一時的な）Capacitor」という考え方です。
+PWAプロジェクトをGitHubにプッシュするだけで、自動的に署名付きAPKがGitHub Releasesに配布される完全自動化システム。
 
-過去のビルド失敗の多くは、古い設定やファイルがCI環境に残存することで発生する「設定の競合」が原因でした。Ephemeral方式では、ワークフロー実行のたびに**まっさらな状態からCapacitorプロジェクトを初期化**し、ビルド完了後には破棄します。
+**所要時間**: 初回設定15分 + 以降は git push のみ（約4分で自動APK生成）
 
-これにより、ビルドの再現性が100%保証され、ゴミファイルによる予期せぬエラーを完全に排除します。
+## 📁 必須ファイル構成
 
-## 2. 成功した技術スタック
-
-このレシピが成功した際の、主要な技術とバージョンは以下の通りです。
-
-- **Capacitor:** v7
-- **Java:** JDK 21
-- **Android SDK:** API 35
-- **Android Gradle Plugin (AGP):** v8.5.2
-- **Node.js:** v20
-
-## 3. 事前準備
-
-このワークフローを正しく動作させるためには、リポジトリのルートディレクトリに以下の準備が必要です。
-
-- `assets/` フォルダを作成
-- `assets/` フォルダ内に、アプリアイコンの元となる `icon.png` (1024x1024px推奨) と、スプラッシュスクリーン用の `splash.png` を配置する。
-
-## 4. ワークフロー (`build-apk.yml`) の主要ステップ解説
-
-1.  **環境設定**: Node.js v20 と Java (Temurin) JDK 21 をセットアップします。
-2.  **依存関係の導入**: `npm install` を実行し、`package.json` に基づいて必要なライブラリ（`@capacitor/cli`, `@capacitor/android`, `capacitor-assets` など）をインストールします。
-3.  **アプリアイコンの自動生成**: `npx capacitor-assets generate` を実行し、`assets` フォルダの画像から各解像度のアイコンとスプラッシュスクリーンを自動生成してAndroidプロジェクト内に配置します。
-4.  **Web資産の準備**: `npm run build` を実行してPWAをビルドし、生成された静的ファイル（HTML, CSS, JS）を `www/` ディレクトリにコピーします。
-5.  **Capacitorのクリーン初期化**:
-    - `rm -rf` コマンドで、前回の実行で生成された可能性のある `android/` フォルダや設定ファイルを完全に削除します。
-    - `npx cap init` で `capacitor.config.json` を生成します。
-    - `npx cap add android` で、最新のAndroidネイティブプロジェクトを生成します。
-6.  **Androidプロジェクトの動的設定**:
-    - `variables.gradle` の内容を、API 35に対応した設定で完全に上書きします。
-    - `build.gradle` の `versionCode` と `versionName` を、GitHub Actionsの実行番号やGitタグから動的に設定します。
-7.  **ビルドとリリース**:
-    - `./gradlew assembleRelease` でAPKをビルドし、署名します。
-    - 成功したAPKをリネームし、バージョンタグを付けてGitHubリリースを自動で作成・アップロードします。
-
-## 5. VANILLA_ICE_CREAM問題の解決詳細
-
-### 問題の背景
-VANILLA_ICE_CREAM問題とは、CI環境でのAndroid SDK競合により発生していた一連のビルドエラーの総称です。主な症状：
-- SDK Manager の設定競合
-- 古いツール設定の残存による初期化失敗
-- 依存関係の解決エラー
-
-### 解決のキーポイント
-1. **完全な環境のリセット**: 毎回まっさらな状態から開始
-2. **明示的な設定上書き**: 古い設定に依存しない強制的な構成
-3. **最新バージョンの統一使用**: 枯れた技術の組み合わせ回避
-
-## 6. 他プロジェクトへの適用方法
-
-### 必要なファイル構成
 ```
 プロジェクトルート/
-├── package.json (Capacitor依存関係を含む)
 ├── assets/
-│   ├── icon.png (1024x1024px)
-│   └── splash.png
-├── src/ (PWAソースコード)
-└── .github/workflows/
-    └── build-apk.yml (本レシピのワークフロー)
+│   ├── icon.png (1024x1024px アプリアイコン)
+│   └── splash.png (スプラッシュ画像)
+├── package.json (Capacitor依存関係含む)
+├── src/ または dist/ (PWAビルド出力先)
+├── .github/
+│   ├── workflows/
+│   │   └── build-apk.yml (自動ビルドワークフロー)
+│   └── templates/
+│       └── build.gradle.template (署名設定テンプレート)
+└── index.html, style.css, script.js (PWA本体)
 ```
 
-### package.json の必須依存関係
+## ⚙️ 1. package.json 設定
+
 ```json
 {
   "devDependencies": {
     "@capacitor/cli": "^7.0.0",
-    "@capacitor/android": "^7.0.0", 
-    "capacitor-assets": "^1.0.1"
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/assets": "^2.0.0"
+  },
+  "scripts": {
+    "build": "echo 'Build completed' && mkdir -p www && cp -r src/* www/ || cp -r dist/* www/ || cp *.html *.css *.js www/"
   }
 }
 ```
 
-### 成功パターンの再現手順
-1. 本レシピの技術スタック構成を維持
-2. Ephemeral方式のワークフローをコピー
-3. プロジェクト固有の設定（アプリ名、パッケージ名等）を調整
-4. assetsフォルダとアイコンファイルを準備
-5. GitHub Actionsで実行
+## 🔑 2. 署名キー生成・GitHub Secrets設定
 
-## 7. まとめ
+### キーストア生成
+```bash
+# プロジェクトルートで実行
+keytool -genkey -v -keystore release.jks -alias release \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -storepass your_password -keypass your_password \
+  -dname "CN=YourApp,O=YourOrg,C=JP"
 
-このEphemeral Capacitor方式は、複雑な設定の不整合問題を根本から解決し、誰がいつ実行しても同じ結果が得られる、堅牢で信頼性の高い自動ビルドパイプラインを実現しました。
+# Base64エンコード
+base64 -i release.jks | tr -d '\n' > keystore_base64.txt
+```
 
-**主要な成果:**
-- ✅ 100%の再現性確保
-- ✅ VANILLA_ICE_CREAM問題の完全解決
-- ✅ 3分59秒での高速ビルド実現
-- ✅ 他プロジェクトへの応用可能性
+### GitHub Secrets設定
+リポジトリの Settings → Secrets and variables → Actions で以下を設定：
 
-このレシピは、PWAからAPKへの変換における新しい標準手法として、今後の開発プロジェクトで活用できます。
+- `KEYSTORE_FILE`: keystore_base64.txt の内容
+- `KEYSTORE_PASSWORD`: your_password
+- `KEY_ALIAS`: release
+- `KEY_PASSWORD`: your_password
+
+## 📄 3. build.gradle.template 作成
+
+`.github/templates/build.gradle.template` ファイルを作成：
+
+```gradle
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.yourcompany.yourapp'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.yourcompany.yourapp"
+        minSdk 24
+        targetSdk 35
+        versionCode DYNAMIC_VERSION_CODE
+        versionName "DYNAMIC_VERSION_NAME"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        release {
+            if (System.getenv("KEYSTORE_BASE64")) {
+                def keystoreFile = new File(project.rootDir, "release.jks")
+                def decodedKeystore = System.getenv("KEYSTORE_BASE64").decodeBase64()
+                keystoreFile.bytes = decodedKeystore
+                
+                storeFile keystoreFile
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS") 
+                keyPassword System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.coordinatorlayout:coordinatorlayout:1.2.0'
+    implementation 'androidx.core:core-splashscreen:1.0.1'
+}
+
+apply from: 'capacitor.build.gradle'
+```
+
+## 🔄 4. GitHub Actions ワークフロー
+
+`.github/workflows/build-apk.yml` ファイルを作成：
+
+```yaml
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          
+      - name: Set Version Information
+        run: |
+          VERSION_MAJOR="1"
+          VERSION_MINOR="0" 
+          VERSION_PATCH="${{ github.run_number }}"
+          VERSION_TAG="$VERSION_MAJOR.$VERSION_MINOR.$VERSION_PATCH"
+          echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
+          
+      - name: Install dependencies
+        run: npm install
+        
+      - name: Build Web App
+        run: npm run build
+        
+      - name: Generate App Icons
+        run: npx capacitor-assets generate --android
+        
+      - name: Initialize Capacitor
+        run: |
+          npx cap init YourAppName com.yourcompany.yourapp --web-dir www
+          npx cap add android
+          
+      - name: Apply Build Template
+        run: |
+          cp .github/templates/build.gradle.template android/app/build.gradle
+          sed -i "s/DYNAMIC_VERSION_CODE/${{ github.run_number }}/g" android/app/build.gradle
+          sed -i "s/DYNAMIC_VERSION_NAME/${{ env.VERSION_TAG }}/g" android/app/build.gradle
+          
+      - name: Sync Capacitor
+        run: npx cap sync android
+        
+      - name: Update Android SDK to API 35
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+          
+      - name: Accept Android SDK Licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+        
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_FILE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          
+      - name: Rename APK
+        run: |
+          APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
+          NEW_NAME="yourapp_${{ env.VERSION_TAG }}-signed.apk"
+          mv "$APK_PATH" "$NEW_NAME"
+          echo "APK_NAME=$NEW_NAME" >> $GITHUB_ENV
+          
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ env.VERSION_TAG }}"
+          name: "YourApp ${{ env.VERSION_TAG }}"
+          files: ${{ env.APK_NAME }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+## 🚀 5. 実行手順
+
+### 初回セットアップ
+1. ファイル構成を準備
+2. package.json に依存関係を追加
+3. assets/ フォルダにアイコン画像を配置
+4. 署名キーを生成してGitHub Secretsに設定
+5. build.gradle.template とワークフローファイルを作成
+
+### 継続的リリース
+```bash
+git add .
+git commit -m "Release v1.0.X"
+git push
+```
+
+**結果**: 約4分後にGitHub Releasesに署名付きAPKが自動配布
+
+## ✅ 成功のポイント
+
+- **Ephemeral Capacitor**: 毎回クリーンな環境で初期化
+- **Golden Template**: 事前定義されたbuild.gradleで設定競合回避
+- **自動バージョニング**: GitHub run_number による自動採番
+- **完全署名**: RecipeBox実証済みの署名システム
+
+このレシピにより、PWAから署名付きAPKまでの完全自動化が実現します。
