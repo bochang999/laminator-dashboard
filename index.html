@@ -169,6 +169,30 @@
         </div>
 
     </div>
+
+    <!-- 勤務状況選択モーダル -->
+    <div id="workStatusModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>勤務状況選択</h3>
+                <button class="modal-close" id="closeWorkStatusModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>本日の勤務状況を選択してください：</p>
+                <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px;">
+                    <button class="btn btn-success work-status-btn" data-status="定時">
+                        📋 定時で終了
+                    </button>
+                    <button class="btn btn-warning work-status-btn" data-status="残業">
+                        ⏰ 残業して終了
+                    </button>
+                    <button class="btn btn-secondary work-status-btn" data-status="早上がり">
+                        🏃 早上がりして終了
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <footer style="text-align: center; padding: 10px; border-top: 1px solid #ccc; font-size: 12px; color: #888;">
         Ver. 2.16

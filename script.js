@@ -1996,28 +1996,15 @@ class LaminatorDashboard {
         }
     }
 
-    // 日の業務を終了して記録
+    // 日の業務を終了して記録（モーダル版）
     endDayAndExport() {
-        // 1. 勤務状況選択ダイアログ
-        const workStatus = prompt(
-            '本日の勤務状況を選択してください:\n\n' +
-            '1: 定時で終了\n' +
-            '2: 残業して終了\n' +
-            '3: 早上がりして終了\n\n' +
-            '数字を入力してください (1-3):',
-            '1'
-        );
-        
-        if (!workStatus || !['1', '2', '3'].includes(workStatus)) {
-            this.showToast('勤務状況の選択がキャンセルされました', 'warning');
-            return;
-        }
-        
-        const statusNames = {
-            '1': '定時',
-            '2': '残業',
-            '3': '早上がり'
-        };
+        // モーダルを表示
+        const modal = document.getElementById('workStatusModal');
+        modal.classList.add('active');
+    }
+
+    // 勤務状況選択後のCSV出力・リセット処理
+    executeEndDayProcess(workStatus) {
         
         // 2. CSVデータ生成
         const currentTime = new Date();
@@ -2241,6 +2228,38 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         console.log('End day button event listener added');
     }
+
+    // 勤務状況選択モーダルのイベントリスナー
+    const workStatusModal = document.getElementById('workStatusModal');
+    const closeWorkStatusModal = document.getElementById('closeWorkStatusModal');
+    const workStatusBtns = document.querySelectorAll('.work-status-btn');
+
+    // モーダル閉じるボタン
+    if (closeWorkStatusModal) {
+        closeWorkStatusModal.addEventListener('click', () => {
+            workStatusModal.classList.remove('active');
+        });
+    }
+
+    // 背景クリックでモーダル閉じる
+    if (workStatusModal) {
+        workStatusModal.addEventListener('click', (e) => {
+            if (e.target === workStatusModal) {
+                workStatusModal.classList.remove('active');
+            }
+        });
+    }
+
+    // 勤務状況ボタンのイベントリスナー
+    workStatusBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const status = e.target.getAttribute('data-status');
+            workStatusModal.classList.remove('active');
+            if (dashboard) {
+                dashboard.executeEndDayProcess(status);
+            }
+        });
+    });
     
     // PWA対応
     if ('serviceWorker' in navigator) {
