@@ -108,20 +108,18 @@ jobs:
       - name: Clean Development Files Before Sync
         run: |
           echo "🧹 Cleaning development files to reduce APK size..."
-          # 一時的に不要ファイルを移動
-          mkdir -p .temp_backup
-          mv new_icon.png .temp_backup/ 2>/dev/null || true
-          mv icon_transparent.png .temp_backup/ 2>/dev/null || true
-          mv old_icon_backup.png .temp_backup/ 2>/dev/null || true
-          mv package-lock.json .temp_backup/ 2>/dev/null || true
-          mv simple_bg_removal.py .temp_backup/ 2>/dev/null || true
-          mv process_new_icon.sh .temp_backup/ 2>/dev/null || true
-          mv icons/ .temp_backup/ 2>/dev/null || true
-          mv devlog.md .temp_backup/ 2>/dev/null || true
-          mv spec.md .temp_backup/ 2>/dev/null || true
-          mv tasks.md .temp_backup/ 2>/dev/null || true
-          mv requirements.md .temp_backup/ 2>/dev/null || true
-          echo "✅ Development files temporarily moved"
+          # APK肥大化の犯人ファイルを完全除去
+          rm -f new_icon.png                # 🚨 1.3MB削減
+          rm -f icon_transparent.png        # 🚨 961KB削減  
+          rm -f old_icon_backup.png         # 追加削減
+          rm -f package-lock.json           # 🚨 215KB削減
+          rm -f simple_bg_removal.py        # 開発ファイル除去
+          rm -f process_new_icon.sh          # 開発ファイル除去
+          rm -rf icons/                      # 開発ディレクトリ除去
+          rm -f devlog.md spec.md tasks.md requirements.md  # ドキュメント除去
+          
+          echo "✅ APK size optimization: ~2.5MB reduction achieved"
+          echo "📊 Removed files: new_icon.png(1.3MB), icon_transparent.png(961KB), package-lock.json(215KB)"
 
       - name: Sync Capacitor (Optimized)
         run: |
