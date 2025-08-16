@@ -181,6 +181,39 @@ jobs:
           ./gradlew clean || echo "Clean skipped (first run)"
           cd ..
 
+      - name: Setup Production Keystore (RecipeBox-proven system)
+        run: |
+          echo "🔐 Setting up production keystore for APK signing..."
+          cd android
+          
+          # Create production keystore if secrets are available
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "📦 Deploying production keystore from GitHub Secrets..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > laminator-release.keystore
+            
+            # Set environment variables for Gradle
+            export KEYSTORE_BASE64="${{ secrets.KEYSTORE_BASE64 }}"
+            export KEYSTORE_PASSWORD="${{ secrets.KEYSTORE_PASSWORD }}"
+            export KEY_ALIAS="${{ secrets.KEY_ALIAS }}"
+            export KEY_PASSWORD="${{ secrets.KEY_PASSWORD }}"
+            
+            echo "✅ Production keystore deployed successfully"
+            SIGNING_MODE="production"
+          else
+            echo "🔧 Production keystore not found, generating development keystore..."
+            if [ ! -f "laminator-dev.keystore" ]; then
+              keytool -genkeypair -v -keystore laminator-dev.keystore \
+                -alias laminator-dev -keyalg RSA -keysize 2048 -validity 10000 \
+                -dname "CN=Laminator Dashboard,OU=Development,O=BochangDev,L=Tokyo,ST=Tokyo,C=JP" \
+                -storepass devpassword123 -keypass devpassword123
+              echo "✅ Development keystore created"
+            fi
+            SIGNING_MODE="development"
+          fi
+          
+          echo "SIGNING_MODE=$SIGNING_MODE" >> $GITHUB_ENV
+          cd ..
+
       - name: Apply Golden Gradle Template
         run: |
           echo "🏆 Applying golden build.gradle template..."
@@ -284,6 +317,7 @@ jobs:
             - **Framework**: Capacitor 7 + Android API 35 (VANILLA_ICE_CREAM)
             - **Build Method**: Ephemeral Capacitor + Production Signing
             - **APK Type**: ${{ env.BUILD_TYPE == 'production' && '🔐 Production Signed' || '🔧 Debug Build' }}
+            - **Signing Mode**: ${{ env.SIGNING_MODE == 'production' && '🔐 Production Keystore' || '🔧 Development Keystore' }}
             - **Compatibility**: Android 7.0+ recommended
             
             ## 🎯 Breakthrough Achievements
@@ -297,7 +331,7 @@ jobs:
             - **Version**: ${{ env.VERSION_TAG }}
             - **Build Number**: ${{ github.run_number }}
             - **Build Type**: ${{ env.BUILD_TYPE }}
-            - **Signing Status**: ${{ env.BUILD_TYPE == 'production' && '🔐 Production Keystore' || '🔧 Debug Keystore' }}
+            - **Signing Status**: ${{ env.SIGNING_MODE == 'production' && '🔐 Production Keystore' || '🔧 Development Keystore' }}
             - **Commit**: ${{ github.sha }}
             
             ---

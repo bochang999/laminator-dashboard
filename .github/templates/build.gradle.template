@@ -19,14 +19,34 @@ android {
     signingConfigs {
         release {
             if (System.getenv("KEYSTORE_BASE64")) {
-                def keystoreFile = new File(project.rootDir, "release.jks")
+                // RecipeBox-proven production signing system
+                def keystoreFile = new File(project.rootDir, "laminator-release.keystore")
                 def decodedKeystore = System.getenv("KEYSTORE_BASE64").decodeBase64()
                 keystoreFile.bytes = decodedKeystore
                 
                 storeFile keystoreFile
-                storePassword System.getenv("KEYSTORE_PASSWORD")
-                keyAlias System.getenv("KEY_ALIAS")
-                keyPassword System.getenv("KEY_PASSWORD")
+                storePassword System.getenv("KEYSTORE_PASSWORD") ?: "laminator2025"
+                keyAlias System.getenv("KEY_ALIAS") ?: "laminator-key"
+                keyPassword System.getenv("KEY_PASSWORD") ?: "laminator2025"
+            } else {
+                // Development fallback - consistent local signing
+                def devKeystoreFile = new File(project.rootDir, "laminator-dev.keystore")
+                if (!devKeystoreFile.exists()) {
+                    // Auto-generate development keystore if missing
+                    def proc = ["keytool", "-genkeypair", "-v", 
+                              "-keystore", devKeystoreFile.absolutePath,
+                              "-alias", "laminator-dev",
+                              "-keyalg", "RSA", "-keysize", "2048", "-validity", "10000",
+                              "-dname", "CN=Laminator Dashboard,OU=Development,O=BochangDev,L=Tokyo,ST=Tokyo,C=JP",
+                              "-storepass", "devpassword123",
+                              "-keypass", "devpassword123"].execute()
+                    proc.waitFor()
+                }
+                
+                storeFile devKeystoreFile
+                storePassword "devpassword123"
+                keyAlias "laminator-dev"
+                keyPassword "devpassword123"
             }
         }
     }
