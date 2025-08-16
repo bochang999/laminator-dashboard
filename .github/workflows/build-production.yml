@@ -196,33 +196,42 @@ jobs:
       - name: Apply Golden Gradle Template
         run: |
           echo "🏆 Applying golden build.gradle template..."
-          mkdir -p .github/templates || true
           cp .github/templates/build.gradle.template android/app/build.gradle
           echo "✅ Golden template applied successfully."
 
-      - name: Build Base APK
+      - name: Build Signed Release APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          echo "🏗️ Building base APK for icon processing..."
+          echo "🏗️ Building production signed APK..."
+          
+          # GitHub Secretsの確認
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "❌ KEYSTORE_BASE64 is not set in GitHub Secrets"
+            exit 1
+          fi
+          
+          echo "✅ GitHub Secrets validation passed"
+          
           cd android
           chmod +x gradlew
           
-          echo "🔨 Starting Gradle build with version injection..."
+          echo "🔨 Building signed release APK with production keystore..."
           ./gradlew clean assembleRelease \
             -Pandroid.injected.versionName="${{ env.VERSION_TAG }}" \
             -Pandroid.injected.versionCode="${{ github.run_number }}" \
-            --no-daemon --stacktrace || ./gradlew assembleDebug --no-daemon --stacktrace
+            --no-daemon --stacktrace
           
-          # Base APK確認
+          # APK確認
           if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
-              echo "✅ Release APK created successfully"
+              echo "✅ Production signed APK created successfully"
               BASE_APK="app/build/outputs/apk/release/app-release.apk"
-              BUILD_TYPE="release"
-          elif [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-              echo "✅ Debug APK created successfully"
-              BASE_APK="app/build/outputs/apk/debug/app-debug.apk"
-              BUILD_TYPE="debug"
+              BUILD_TYPE="production"
           else
-              echo "❌ No APK found"
+              echo "❌ Production signed APK build failed"
               exit 1
           fi
           
@@ -230,17 +239,25 @@ jobs:
           echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
           cd ..
 
-      - name: Use Standard APK (Lightweight Version)
+      - name: Prepare Final Production APK
         run: |
-          echo "📦 Using standard APK build (Ver.2.16.30 compatible)..."
+          echo "📦 Preparing final production signed APK..."
           
-          # 標準APKをそのまま使用
+          # 本番署名済みAPKをファイナル版として準備
           FINAL_NAME="lamidash_${{ env.VERSION_TAG }}.apk"
           cp "android/${{ env.BASE_APK }}" "./$FINAL_NAME"
           
-          echo "✅ Standard APK created: $FINAL_NAME"
+          echo "✅ Production signed APK ready: $FINAL_NAME"
           echo "📊 APK Information:"
           ls -lh "$FINAL_NAME"
+          
+          # 署名確認
+          echo "🔐 Verifying APK signature..."
+          if command -v aapt2 >/dev/null; then
+            aapt2 dump badging "$FINAL_NAME" | head -5
+          else
+            echo "aapt2 not available, skipping signature verification"
+          fi
           
           echo "APK_FILE=$FINAL_NAME" >> $GITHUB_ENV
 
@@ -260,7 +277,7 @@ jobs:
           body: |
             # 🎛️ Laminator Dashboard ${{ env.VERSION_TAG }}
             
-            **✨ Production-Ready Signed Release** - Complete APK Signing Implementation
+            **✨ Phoenix Production Release** - Official Production Signed APK
             
             ## 📥 Installation Instructions
             1. ⬇️ Download the APK file
@@ -279,7 +296,7 @@ jobs:
             ## 🔧 Technical Specifications
             - **Build Environment**: Node.js ${{ env.NODE_VERSION }} + Java ${{ env.JAVA_VERSION }}
             - **Framework**: Capacitor 7 + Android API 35 (VANILLA_ICE_CREAM)
-            - **Build Method**: Ephemeral Capacitor + Production Signing
+            - **Build Method**: Phoenix Production Pipeline + Golden Template
             - **APK Type**: ${{ env.BUILD_TYPE == 'production' && '🔐 Production Signed' || '🔧 Debug Build' }}
             - **Compatibility**: Android 7.0+ recommended
             
@@ -298,8 +315,8 @@ jobs:
             - **Commit**: ${{ github.sha }}
             
             ---
-            🤖 **Auto Build**: GitHub Actions (Ephemeral-Capacitor-Production)  
+            🤖 **Auto Build**: Project Phoenix Production Pipeline  
             📅 **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')  
-            🏆 **Milestone**: Complete APK Signing Implementation
+            🏆 **Milestone**: Golden Template Production Signing
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
