@@ -35,6 +35,14 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Setup Android SDK Build Tools Path
+        run: |
+          echo "Setting up Android SDK Build Tools path..."
+          BUILD_TOOLS_PATH=$(find $ANDROID_HOME/build-tools -maxdepth 1 | sort -r | head -n 1)
+          echo "Found Build Tools at: $BUILD_TOOLS_PATH"
+          echo "$BUILD_TOOLS_PATH" >> $GITHUB_PATH
+          echo "✅ Android SDK Build-Tools added to PATH."
+
       - name: Accept Android licenses
         run: yes | sdkmanager --licenses >/dev/null
 
