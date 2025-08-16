@@ -80,6 +80,7 @@ body {
 /* Header */
 .app-header {
     background: var(--primary-color);
+    background-color: #2C3E50; /* 明示的な背景色でステータスバー問題を解決 */
     color: white;
     padding: 16px;
     display: flex;

@@ -1996,6 +1996,149 @@ class LaminatorDashboard {
         }
     }
 
+    // 日の業務を終了して記録
+    endDayAndExport() {
+        // 1. 勤務状況選択ダイアログ
+        const workStatus = prompt(
+            '本日の勤務状況を選択してください:\n\n' +
+            '1: 定時で終了\n' +
+            '2: 残業して終了\n' +
+            '3: 早上がりして終了\n\n' +
+            '数字を入力してください (1-3):',
+            '1'
+        );
+        
+        if (!workStatus || !['1', '2', '3'].includes(workStatus)) {
+            this.showToast('勤務状況の選択がキャンセルされました', 'warning');
+            return;
+        }
+        
+        const statusNames = {
+            '1': '定時',
+            '2': '残業',
+            '3': '早上がり'
+        };
+        
+        // 2. CSVデータ生成
+        const currentTime = new Date();
+        const dateStr = currentTime.toLocaleDateString('ja-JP');
+        const timeStr = currentTime.toLocaleTimeString('ja-JP');
+        
+        // 完了済みジョブの抽出
+        const completedJobs = [];
+        this.filmSessions.forEach(session => {
+            session.jobs.forEach(job => {
+                if (job.completed) {
+                    completedJobs.push({
+                        ...job,
+                        sessionId: session.id,
+                        filmCapacity: session.filmCapacity
+                    });
+                }
+            });
+        });
+        
+        // サマリー計算
+        const totalCompletedJobs = completedJobs.length;
+        const totalSheets = completedJobs.reduce((sum, job) => sum + job.sheets, 0);
+        const totalUsedMeters = completedJobs.reduce((sum, job) => sum + (job.sheets * job.usageLength), 0);
+        const totalProductionTime = completedJobs.reduce((sum, job) => sum + job.productionTime, 0);
+        
+        // CSVヘッダー
+        const csvHeaders = [
+            '日付',
+            '記録時刻', 
+            '勤務状況',
+            '業務開始時刻',
+            '完了ジョブ数',
+            '総生産枚数',
+            '総使用メーター',
+            '生産時間(分)',
+            '手動追加時間(分)',
+            '現在フィルム残量(m)'
+        ];
+        
+        // CSVデータ行
+        const csvData = [
+            dateStr,
+            timeStr,
+            statusNames[workStatus],
+            this.workStarted ? this.formatTime(this.workStartTime) : '未開始',
+            totalCompletedJobs,
+            totalSheets,
+            totalUsedMeters.toFixed(2),
+            totalProductionTime.toFixed(1),
+            this.extraTime,
+            this.currentFilmSession ? this.currentFilmSession.filmRemaining.toFixed(1) : '0.0'
+        ];
+        
+        // CSV文字列作成
+        const csvContent = [
+            csvHeaders.join(','),
+            csvData.join(','),
+            '', // 空行
+            '詳細ジョブ履歴:',
+            'セッション,ジョブ名,生産枚数,使用長(m/枚),総使用メーター,生産時間(分),完了時刻'
+        ].concat(
+            completedJobs.map(job => 
+                [
+                    `セッション${job.sessionId}`,
+                    job.name || 'ジョブ名なし',
+                    job.sheets,
+                    job.usageLength.toFixed(3),
+                    (job.sheets * job.usageLength).toFixed(2),
+                    job.productionTime.toFixed(1),
+                    job.completedAt ? job.completedAt.toLocaleTimeString('ja-JP') : '時刻不明'
+                ].join(',')
+            )
+        ).join('\n');
+        
+        // 3. CSVファイルダウンロード
+        try {
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            const filename = `laminator-work-log-${dateStr.replace(/\//g, '-')}-${statusNames[workStatus]}.csv`;
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            this.showToast('作業ログをCSVでダウンロードしました', 'success');
+            
+            // 4. データリセット確認
+            setTimeout(() => {
+                const confirmReset = confirm(
+                    `作業ログのエクスポートが完了しました。\n\n` +
+                    `本日の作業データをリセットして、\n` +
+                    `明日の作業準備をしますか？\n\n` +
+                    `※この操作は取り消せません`
+                );
+                
+                if (confirmReset) {
+                    // localStorageを完全クリア
+                    localStorage.removeItem('laminator_dashboard_v3');
+                    
+                    // ページリロード
+                    this.showToast('データをリセットしています...', 'success');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    this.showToast('データはそのまま保持されます', 'info');
+                }
+            }, 1500);
+            
+        } catch (error) {
+            console.error('CSV出力エラー:', error);
+            this.showToast('CSV出力に失敗しました', 'error');
+        }
+    }
+
     // データバックアップ機能
     backupData() {
         try {
@@ -2087,6 +2230,16 @@ document.addEventListener('DOMContentLoaded', () => {
             dashboard.showSettings();
         });
         console.log('Settings button event listener added');
+    }
+    
+    // 日の業務終了ボタンのイベントリスナー
+    const endDayBtn = document.getElementById('endDayBtn');
+    if (endDayBtn && dashboard) {
+        endDayBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            dashboard.endDayAndExport();
+        });
+        console.log('End day button event listener added');
     }
     
     // PWA対応
