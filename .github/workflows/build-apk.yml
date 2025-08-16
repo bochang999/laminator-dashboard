@@ -161,30 +161,7 @@ jobs:
       - name: Add Signing Configuration to build.gradle
         run: |
           echo "🔧 Adding RecipeBox-style signing configuration to build.gradle..."
-          
-          # build.gradleに署名設定を動的追加
-          if [ -f "android/app/build.gradle" ]; then
-            echo "📝 Updating app/build.gradle with signing configuration..."
-            
-            # 署名設定をandroidブロックに追加
-            sed -i '/defaultConfig {/i\
-    signingConfigs {\
-        release {\
-            storeFile file(System.getenv("LAMINATOR_STORE_FILE") ?: "laminator-dev-key.jks")\
-            storePassword System.getenv("LAMINATOR_STORE_PASSWORD") ?: "laminator123"\
-            keyAlias System.getenv("LAMINATOR_KEY_ALIAS") ?: "laminator"\
-            keyPassword System.getenv("LAMINATOR_KEY_PASSWORD") ?: "laminator123"\
-        }\
-    }' android/app/build.gradle
-            
-            # buildTypesにsigningConfigを追加
-            sed -i '/release {/a\
-            signingConfig signingConfigs.release' android/app/build.gradle
-            
-            echo "✅ Signing configuration added to build.gradle"
-          else
-            echo "⚠️ build.gradle not found, will be created by Capacitor"
-          fi
+          echo "📝 Will configure signing in the build step (Ephemeral Capacitor)"
 
       - name: Build Signed Release APK with RecipeBox Method
         working-directory: android
@@ -201,22 +178,29 @@ jobs:
                 -storepass laminator123 -keypass laminator123
           fi
           
-          # 動的署名設定をbuild.gradleに上書き追加
-          echo "📝 Ensuring signing configuration in build.gradle..."
+          # RecipeBox方式：build.gradleに署名設定を安全に追加
+          echo "📝 Adding signing configuration to build.gradle..."
           if ! grep -q "signingConfigs" app/build.gradle; then
-            # 署名設定がない場合は追加
-            sed -i '/android {/a\
-    signingConfigs {\
-        release {\
-            storeFile file("laminator-dev-key.jks")\
-            storePassword "laminator123"\
-            keyAlias "laminator"\
-            keyPassword "laminator123"\
-        }\
-    }' app/build.gradle
+            # 署名設定を安全に追加
+            echo "    signingConfigs {" >> temp_signing.txt
+            echo "        release {" >> temp_signing.txt
+            echo "            storeFile file('laminator-dev-key.jks')" >> temp_signing.txt
+            echo "            storePassword 'laminator123'" >> temp_signing.txt
+            echo "            keyAlias 'laminator'" >> temp_signing.txt
+            echo "            keyPassword 'laminator123'" >> temp_signing.txt
+            echo "        }" >> temp_signing.txt
+            echo "    }" >> temp_signing.txt
             
-            sed -i '/buildTypes {/,/release {/s/release {/release {\
-            signingConfig signingConfigs.release/' app/build.gradle
+            # androidブロック内に署名設定を挿入
+            sed -i '/android {/r temp_signing.txt' app/build.gradle
+            
+            # buildTypesのreleaseに署名設定を追加
+            sed -i '/release {/a\            signingConfig signingConfigs.release' app/build.gradle
+            
+            rm temp_signing.txt
+            echo "✅ Signing configuration added successfully"
+          else
+            echo "⚠️ Signing configuration already exists"
           fi
           
           # RecipeBox方式：署名付きリリースビルド  
