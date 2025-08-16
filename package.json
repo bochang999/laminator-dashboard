@@ -18,7 +18,7 @@
     "@capacitor/cli": "^7.0.0",
     "@capacitor/android": "^7.0.0", 
     "@capacitor/status-bar": "^7.0.0",
-    "capacitor-assets": "^1.0.1",
+    "@capacitor/assets": "^2.0.0",
     "typescript": "^5.9.2"
   },
   "keywords": ["laminator", "dashboard", "capacitor", "android", "pwa"],
