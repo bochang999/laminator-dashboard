@@ -79,12 +79,14 @@ jobs:
           echo "✅ Capacitor initialization completed successfully"
 
       - name: Set App Version in Gradle
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
           echo "📋 Setting app version information..."
           # versionNameをGitタグから設定
           VERSION_NAME="v2.16-final"
           # versionCodeをGitHubの実行番号に設定
-          VERSION_CODE=${{ github.run_number }}
+          VERSION_CODE=$RUN_NUMBER
           
           echo "🔧 Updating build.gradle with version info..."
           sed -i "s/versionName \".*\"/versionName \"$VERSION_NAME\"/" android/app/build.gradle
