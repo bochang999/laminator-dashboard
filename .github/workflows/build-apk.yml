@@ -171,14 +171,9 @@ jobs:
           cp .github/templates/build.gradle.template android/app/build.gradle
           echo "✅ Golden template applied successfully."
 
-      - name: Build Signed Release APK
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      - name: Build Base APK
         run: |
-          echo "🏗️ Building signed release APK with Golden Template..."
+          echo "🏗️ Building base APK for icon processing..."
           cd android
           chmod +x gradlew
           
@@ -186,35 +181,126 @@ jobs:
           ./gradlew clean assembleRelease \
             -Pandroid.injected.versionName="${{ env.VERSION_TAG }}" \
             -Pandroid.injected.versionCode="${{ github.run_number }}" \
-            --no-daemon --stacktrace
+            --no-daemon --stacktrace || ./gradlew assembleDebug --no-daemon --stacktrace
           
-          # APK確認とパッケージング
+          # Base APK確認
           if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
-              echo "✅ Signed release APK created successfully"
-              ls -la app/build/outputs/apk/release/app-release.apk
-              
-              NEW_NAME="lamidash_${{ env.VERSION_TAG }}.apk"
-              cp "app/build/outputs/apk/release/app-release.apk" "../$NEW_NAME"
-              echo "📦 APK renamed to $NEW_NAME"
-              BUILD_TYPE="signed"
-          else
-              echo "❌ Release APK not found, falling back to debug build"
-              ./gradlew assembleDebug --no-daemon --stacktrace
-              NEW_NAME="lamidash_${{ env.VERSION_TAG }}-debug.apk"
-              cp "app/build/outputs/apk/debug/app-debug.apk" "../$NEW_NAME" 2>/dev/null || \
-              cp "app/build/outputs/apk/debug/app-debug.apk" "../$NEW_NAME"
-              echo "📦 Debug APK renamed to $NEW_NAME"
+              echo "✅ Release APK created successfully"
+              BASE_APK="app/build/outputs/apk/release/app-release.apk"
+              BUILD_TYPE="release"
+          elif [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+              echo "✅ Debug APK created successfully"
+              BASE_APK="app/build/outputs/apk/debug/app-debug.apk"
               BUILD_TYPE="debug"
+          else
+              echo "❌ No APK found"
+              exit 1
           fi
           
-          cd ..
-          echo "📦 Final APK: $NEW_NAME"
-          echo "📊 APK Information:"
-          ls -lh "$NEW_NAME"
-          
-          echo "APK_FILE=$NEW_NAME" >> $GITHUB_ENV
-          echo "VERSION_TAG=${{ env.VERSION_TAG }}" >> $GITHUB_ENV
+          echo "BASE_APK=$BASE_APK" >> $GITHUB_ENV
           echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
+          cd ..
+
+      - name: Advanced APK Icon Processing (RecipeBox Method)
+        run: |
+          echo "🎨 Advanced APK icon processing using RecipeBox proven method..."
+          
+          # アイコンファイルの確認
+          if [ ! -f "icon_transparent.png" ]; then
+              echo "⚠️ Transparent icon not found, using standard icons"
+              CUSTOM_ICON="icon-512.png"
+          else
+              echo "✅ Using transparent icon: icon_transparent.png"
+              CUSTOM_ICON="icon_transparent.png"
+          fi
+          
+          # APKの展開
+          echo "📂 Extracting APK for icon replacement..."
+          mkdir -p $RUNNER_TEMP/apk_extract
+          cd $RUNNER_TEMP/apk_extract
+          unzip -q "$GITHUB_WORKSPACE/android/${{ env.BASE_APK }}"
+          
+          # アイコン置換 (RecipeBox実証済み方式)
+          echo "🔄 Replacing icons with beautiful gradient design..."
+          for dir in res/mipmap-*; do
+              if [ -d "$dir" ]; then
+                  echo "Processing $dir..."
+                  cp "$GITHUB_WORKSPACE/$CUSTOM_ICON" "$dir/ic_launcher.png" 2>/dev/null || true
+                  cp "$GITHUB_WORKSPACE/$CUSTOM_ICON" "$dir/ic_launcher_round.png" 2>/dev/null || true
+                  cp "$GITHUB_WORKSPACE/$CUSTOM_ICON" "$dir/ic_launcher_foreground.png" 2>/dev/null || true
+                  cp "$GITHUB_WORKSPACE/$CUSTOM_ICON" "$dir/ic_launcher_monochrome.png" 2>/dev/null || true
+              fi
+          done
+          
+          # 署名削除
+          echo "🗑️ Removing old signatures..."
+          rm -rf META-INF
+          
+          # 無圧縮再パック (RecipeBox Critical Success Factor)
+          echo "📦 Re-packing APK with uncompressed method (CRC preservation)..."
+          zip -r -0 $RUNNER_TEMP/modified.apk .
+          
+          # APK診断 (RecipeBox品質保証)
+          echo "🔍 AAPT diagnostic check..."
+          if aapt2 dump badging $RUNNER_TEMP/modified.apk > $RUNNER_TEMP/aapt_output.txt 2>&1; then
+              echo "✅ APK structure valid"
+              cat $RUNNER_TEMP/aapt_output.txt | head -5
+          else
+              echo "⚠️ APK structure issues detected"
+              cat $RUNNER_TEMP/aapt_output.txt || true
+          fi
+          
+          # zipalign
+          echo "🔧 Applying zipalign..."
+          zipalign -p -f 4 $RUNNER_TEMP/modified.apk $RUNNER_TEMP/aligned.apk
+          
+          echo "MODIFIED_APK=$RUNNER_TEMP/aligned.apk" >> $GITHUB_ENV
+
+      - name: Sign Modified APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "🔐 Signing modified APK with production keystore..."
+          
+          # キーストア復元
+          echo "$KEYSTORE_BASE64" | base64 -d > $RUNNER_TEMP/release.keystore
+          
+          # APK署名 (v1+v2+v3 multi-signing for compatibility)
+          echo "✍️ Applying production signature..."
+          apksigner sign \
+            --ks $RUNNER_TEMP/release.keystore \
+            --ks-pass pass:"$KEYSTORE_PASSWORD" \
+            --key-pass pass:"$KEY_PASSWORD" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out $RUNNER_TEMP/final.apk \
+            ${{ env.MODIFIED_APK }}
+          
+          # 署名確認
+          echo "🔍 Verifying APK signature..."
+          apksigner verify $RUNNER_TEMP/final.apk
+          
+          if [ $? -eq 0 ]; then
+              echo "✅ APK signature verified successfully"
+              
+              # 最終APKファイル名
+              FINAL_NAME="lamidash_${{ env.VERSION_TAG }}_icon-updated.apk"
+              cp $RUNNER_TEMP/final.apk "./$FINAL_NAME"
+              
+              echo "🎉 Icon-updated APK created: $FINAL_NAME"
+              echo "📊 Final APK Information:"
+              ls -lh "$FINAL_NAME"
+              
+              echo "APK_FILE=$FINAL_NAME" >> $GITHUB_ENV
+          else
+              echo "❌ APK signature verification failed"
+              exit 1
+          fi
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
