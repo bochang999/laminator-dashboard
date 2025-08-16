@@ -246,6 +246,10 @@ jobs:
           
           # 無圧縮再パック (RecipeBox Critical Success Factor)
           echo "📦 Re-packing APK with uncompressed method (CRC preservation)..."
+          echo "🔍🔍🔍 Diagnosing contents before re-packing..."
+          pwd
+          ls -lAR
+          echo "--- Diagnostic complete. Proceeding to zip. ---"
           zip -r -0 $RUNNER_TEMP/modified.apk .
           
           # APK診断 (RecipeBox品質保証)
