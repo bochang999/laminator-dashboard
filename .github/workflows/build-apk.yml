@@ -89,6 +89,23 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Configure Build Gradle for Command-line Version Injection
+        run: |
+          echo "🔧 Configuring build.gradle for command-line version injection..."
+          
+          # build.gradleを恒久的に修正（一度だけ実行する必要がある）
+          if [ -f android/app/build.gradle ]; then
+            echo "📝 Updating build.gradle to support -P parameter injection..."
+            
+            # versionCodeとversionNameをコマンドライン注入対応に変更
+            sed -i 's/versionCode .*/versionCode project.hasProperty('\''android.injected.versionCode'\'') ? project.property('\''android.injected.versionCode'\'').toInteger() : 1/' android/app/build.gradle
+            sed -i 's/versionName .*/versionName project.hasProperty('\''android.injected.versionName'\'') ? project.property('\''android.injected.versionName'\'') : "1.0"/' android/app/build.gradle
+            
+            echo "✅ build.gradle configured for command-line version injection"
+          else
+            echo "⚠️ build.gradle not found, skipping configuration"
+          fi
+
       - name: Configure Android API 35 Settings
         run: |
           echo "📱 Configuring Android for API 35 (VANILLA_ICE_CREAM)..."
@@ -125,7 +142,17 @@ jobs:
             echo "✅ AGP configured for API 35 compatibility"
           fi
 
+      - name: Set Version Information
+        run: |
+          echo "📋 Setting version information for build..."
+          VERSION_TAG="v2.16-final"
+          echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
+          echo "✅ Version tag set to: $VERSION_TAG"
+
       - name: Build APK with Enhanced Error Handling
+        env:
+          VERSION_TAG: ${{ env.VERSION_TAG }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
           echo "🏗️ Building APK with Capacitor 7 + API 35..."
           cd android
@@ -133,26 +160,16 @@ jobs:
           echo "🧹 Cleaning previous builds..."
           ./gradlew clean
           
-          echo "📋 Gradle version info..."
-          ./gradlew --version
-          
-          echo "🔨 Building release APK..."
+          echo "🔨 Building release APK with injected version properties..."
+          # -Pパラメータでバージョン情報を安全に注入する
           ./gradlew assembleRelease \
-            -Pandroid.injected.version.code="${{ github.run_number }}" \
-            -Pandroid.injected.version.name="v2.16-final" \
+            -Pandroid.injected.versionName="$VERSION_TAG" \
+            -Pandroid.injected.versionCode="$RUN_NUMBER" \
             --stacktrace --info > ../build.log 2>&1 || {
-            echo "❌ Build failed. Analyzing error log..."
-            echo ""
-            echo "🔍 FIRST 20 LINES:"
-            head -20 ../build.log
-            echo ""
-            echo "🔍 ERROR SECTIONS:"
-            grep -A 5 -B 5 -i "error\|failed\|exception" ../build.log | head -30
-            echo ""
-            echo "🔍 LAST 20 LINES:"
-            tail -20 ../build.log
-            exit 1
-          }
+              echo "❌ Build failed. Analyzing error log..."
+              cat ../build.log
+              exit 1
+            }
           
           echo "✅ APK build completed successfully"
 
