@@ -158,73 +158,43 @@ jobs:
           ./gradlew clean || echo "Clean skipped (first run)"
           cd ..
 
-      - name: Add Signing Configuration to build.gradle
+      - name: Apply Golden Gradle Template
         run: |
-          echo "🔧 Adding RecipeBox-style signing configuration to build.gradle..."
-          echo "📝 Will configure signing in the build step (Ephemeral Capacitor)"
+          echo "🏆 Applying golden build.gradle template..."
+          mkdir -p .github/templates || true
+          cp .github/templates/build.gradle.template android/app/build.gradle
+          echo "✅ Golden template applied successfully."
 
-      - name: Build Signed Release APK with RecipeBox Method
-        working-directory: android
+      - name: Build Signed Release APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          echo "🔨 Building signed APK using RecipeBox proven method..."
+          echo "🏗️ Building signed release APK with Golden Template..."
+          cd android
           chmod +x gradlew
           
-          # RecipeBox方式：キーストア作成（開発用固定署名）
-          if [ ! -f "laminator-dev-key.jks" ]; then
-              echo "🔑 Creating development keystore using RecipeBox method..."
-              keytool -genkeypair -v -keystore laminator-dev-key.jks \
-                -alias laminator -keyalg RSA -keysize 2048 -validity 10000 \
-                -dname "CN=Laminator Dashboard,O=BochangDev,C=JP" \
-                -storepass laminator123 -keypass laminator123
-          fi
-          
-          # RecipeBox方式：build.gradleに署名設定を安全に追加
-          echo "📝 Adding signing configuration to build.gradle..."
-          if ! grep -q "signingConfigs" app/build.gradle; then
-            # 署名設定を安全に追加
-            echo "    signingConfigs {" >> temp_signing.txt
-            echo "        release {" >> temp_signing.txt
-            echo "            storeFile file('laminator-dev-key.jks')" >> temp_signing.txt
-            echo "            storePassword 'laminator123'" >> temp_signing.txt
-            echo "            keyAlias 'laminator'" >> temp_signing.txt
-            echo "            keyPassword 'laminator123'" >> temp_signing.txt
-            echo "        }" >> temp_signing.txt
-            echo "    }" >> temp_signing.txt
-            
-            # androidブロック内に署名設定を挿入
-            sed -i '/android {/r temp_signing.txt' app/build.gradle
-            
-            # buildTypesのreleaseに署名設定を追加
-            sed -i '/release {/a\            signingConfig signingConfigs.release' app/build.gradle
-            
-            rm temp_signing.txt
-            echo "✅ Signing configuration added successfully"
-          else
-            echo "⚠️ Signing configuration already exists"
-          fi
-          
-          # RecipeBox方式：署名付きリリースビルド  
-          echo "🔨 Building signed release APK..."
-          export LAMINATOR_STORE_FILE="laminator-dev-key.jks"
-          export LAMINATOR_STORE_PASSWORD="laminator123"
-          export LAMINATOR_KEY_ALIAS="laminator"
-          export LAMINATOR_KEY_PASSWORD="laminator123"
-          
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          echo "🔨 Starting Gradle build with version injection..."
+          ./gradlew assembleRelease \
+            -Pandroid.injected.versionName="${{ env.VERSION_TAG }}" \
+            -Pandroid.injected.versionCode="${{ github.run_number }}" \
+            --no-daemon --stacktrace
           
           # APK確認とパッケージング
           if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
               echo "✅ Signed release APK created successfully"
               ls -la app/build/outputs/apk/release/app-release.apk
               
-              VERSION="v2.16-fixed"
+              VERSION="v2.16-golden"
               NEW_NAME="LaminatorDashboard-${VERSION}-signed.apk"
               cp "app/build/outputs/apk/release/app-release.apk" "../$NEW_NAME"
               BUILD_TYPE="signed"
           else
               echo "❌ Release APK not found, falling back to debug build"
               ./gradlew assembleDebug --no-daemon --stacktrace
-              VERSION="v2.16-fixed"
+              VERSION="v2.16-golden"
               NEW_NAME="LaminatorDashboard-${VERSION}-debug.apk"
               cp "app/build/outputs/apk/debug/app-debug.apk" "../$NEW_NAME" 2>/dev/null || \
               cp "app/build/outputs/apk/debug/app-debug.apk" "../$NEW_NAME"
