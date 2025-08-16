@@ -49,13 +49,21 @@ jobs:
         id: detect
         run: |
           echo "🔍 Detecting webDir location with robust method..."
-          for d in dist build www public .; do
+          for d in dist build www public; do
             if [ -f "$d/index.html" ]; then
               echo "✅ Found index.html in: $d"
               echo "webdir=$d" >> $GITHUB_OUTPUT
               exit 0
             fi
           done
+          # If found in current directory, use "www" as webDir name
+          if [ -f "./index.html" ]; then
+            echo "✅ Found index.html in current directory, using 'www' as webDir"
+            mkdir -p www
+            cp -r *.html *.css *.js *.json *.png *.ico assets/ www/ 2>/dev/null || true
+            echo "webdir=www" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           echo "::error::index.html not found in any expected directory"
           exit 1
 
