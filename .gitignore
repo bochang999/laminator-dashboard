@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+.npm
+
+# Build outputs
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Development files and build artifacts
+*.log
+package-lock.json
+*.keystore
+*.jks
+
+# Temporary images
+new_icon.png
+icon_transparent.png
+old_icon_backup.png
+/icons/
+
+# Python scripts for local development
+*.py
+
+# Local documentation
+devlog.md
+spec.md
+tasks.md
+requirements.md
+
+# Capacitor
+.capacitor
+android/
+ios/
+electron/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

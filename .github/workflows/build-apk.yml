@@ -105,27 +105,11 @@ jobs:
           
           echo "✅ Capacitor initialization completed successfully"
 
-      - name: Clean Development Files Before Sync
+      - name: Sync Capacitor
         run: |
-          echo "🧹 Cleaning development files to reduce APK size..."
-          # APK肥大化の犯人ファイルを完全除去
-          rm -f new_icon.png                # 🚨 1.3MB削減
-          rm -f icon_transparent.png        # 🚨 961KB削減  
-          rm -f old_icon_backup.png         # 追加削減
-          rm -f package-lock.json           # 🚨 215KB削減
-          rm -f simple_bg_removal.py        # 開発ファイル除去
-          rm -f process_new_icon.sh          # 開発ファイル除去
-          rm -rf icons/                      # 開発ディレクトリ除去
-          rm -f devlog.md spec.md tasks.md requirements.md  # ドキュメント除去
-          
-          echo "✅ APK size optimization: ~2.5MB reduction achieved"
-          echo "📊 Removed files: new_icon.png(1.3MB), icon_transparent.png(961KB), package-lock.json(215KB)"
-
-      - name: Sync Capacitor (Optimized)
-        run: |
-          echo "⚡ Syncing Capacitor with reduced file set..."
+          echo "⚡ Syncing Capacitor..."
           npx cap sync android
-          echo "✅ Capacitor sync completed with optimized assets"
+          echo "✅ Capacitor sync completed"
 
       - name: Configure Build Gradle for Command-line Version Injection
         run: |
