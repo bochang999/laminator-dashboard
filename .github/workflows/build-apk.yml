@@ -43,11 +43,7 @@ jobs:
             "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then npm ci; else npm i; fi
-          # Capacitor一式をCI内だけで導入（リポジトリは汚さない）
-          npm i -D @capacitor/cli@7 @capacitor/android@7 capacitor-assets@1.0.1
-          npm i @capacitor/core@7 @capacitor/status-bar@7
+        run: npm install
 
       - name: Generate App Icons and Splash Screen
         run: |
