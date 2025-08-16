@@ -7,6 +7,8 @@ on:
 
 jobs:
   build-android:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
 
     env:
@@ -186,9 +188,8 @@ jobs:
           # APKファイルの場所を特定
           APK_PATH=$(find android/app/build/outputs/apk -name "*.apk" | head -1)
           if [ -n "$APK_PATH" ]; then
-            TIMESTAMP=$(date +%Y%m%d-%H%M)  
-            VERSION="v2.16-capacitor7-${TIMESTAMP}"
-            NEW_NAME="LaminatorDashboard-${VERSION}.apk"
+            VERSION="v1.00"
+            NEW_NAME="lamidash_${VERSION}.apk"
             
             echo "✅ Found APK: $APK_PATH"
             echo "📦 Renaming to: $NEW_NAME"
