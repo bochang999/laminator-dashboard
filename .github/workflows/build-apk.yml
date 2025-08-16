@@ -46,8 +46,18 @@ jobs:
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm i; fi
           # Capacitor一式をCI内だけで導入（リポジトリは汚さない）
-          npm i -D @capacitor/cli@7 @capacitor/android@7
-          npm i @capacitor/core@7
+          npm i -D @capacitor/cli@7 @capacitor/android@7 capacitor-assets@1.0.1
+          npm i @capacitor/core@7 @capacitor/status-bar@7
+
+      - name: Generate App Icons and Splash Screen
+        run: |
+          echo "🎨 Generating app icons and splash screens..."
+          if [ -d "assets" ] && [ -f "assets/icon.png" ]; then
+            npx capacitor-assets generate --android
+            echo "✅ Icons and splash screens generated successfully"
+          else
+            echo "⚠️ No assets/icon.png found, skipping icon generation"
+          fi
 
       - name: Detect webDir (robust)
         id: detect
@@ -81,6 +91,21 @@ jobs:
           npx cap add android
           
           echo "✅ Capacitor initialization completed successfully"
+
+      - name: Set App Version in Gradle
+        run: |
+          echo "📋 Setting app version information..."
+          # versionNameをGitタグから設定
+          VERSION_NAME="v2.16-final"
+          # versionCodeをGitHubの実行番号に設定
+          VERSION_CODE=${{ github.run_number }}
+          
+          echo "🔧 Updating build.gradle with version info..."
+          sed -i "s/versionName \".*\"/versionName \"$VERSION_NAME\"/" android/app/build.gradle
+          sed -i "s/versionCode .*/versionCode $VERSION_CODE/" android/app/build.gradle
+          
+          echo "✅ versionName set to $VERSION_NAME"
+          echo "✅ versionCode set to $VERSION_CODE"
 
       - name: Sync Capacitor
         run: npx cap sync android

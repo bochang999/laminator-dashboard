@@ -17,7 +17,9 @@
     "playwright": "^1.54.2"
   },
   "devDependencies": {
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "@capacitor/status-bar": "^7.0.0",
+    "capacitor-assets": "^1.0.1"
   },
   "keywords": ["laminator", "dashboard", "capacitor", "android", "pwa"],
   "author": "bochang",
