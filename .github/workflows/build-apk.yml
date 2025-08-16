@@ -147,7 +147,10 @@ jobs:
       - name: Set Version Information
         run: |
           echo "📋 Setting version information for build..."
-          VERSION_TAG="v2.16-final"
+          VERSION_MAJOR="2"
+          VERSION_MINOR="16"
+          VERSION_PATCH="${{ github.run_number }}"
+          VERSION_TAG="$VERSION_MAJOR.$VERSION_MINOR.$VERSION_PATCH"
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
           echo "✅ Version tag set to: $VERSION_TAG"
 
@@ -187,17 +190,17 @@ jobs:
               echo "✅ Signed release APK created successfully"
               ls -la app/build/outputs/apk/release/app-release.apk
               
-              VERSION="v2.16-golden"
-              NEW_NAME="LaminatorDashboard-${VERSION}-signed.apk"
+              NEW_NAME="lamidash_${{ env.VERSION_TAG }}-signed.apk"
               cp "app/build/outputs/apk/release/app-release.apk" "../$NEW_NAME"
+              echo "📦 APK renamed to $NEW_NAME"
               BUILD_TYPE="signed"
           else
               echo "❌ Release APK not found, falling back to debug build"
               ./gradlew assembleDebug --no-daemon --stacktrace
-              VERSION="v2.16-golden"
-              NEW_NAME="LaminatorDashboard-${VERSION}-debug.apk"
+              NEW_NAME="lamidash_${{ env.VERSION_TAG }}-debug.apk"
               cp "app/build/outputs/apk/debug/app-debug.apk" "../$NEW_NAME" 2>/dev/null || \
               cp "app/build/outputs/apk/debug/app-debug.apk" "../$NEW_NAME"
+              echo "📦 Debug APK renamed to $NEW_NAME"
               BUILD_TYPE="debug"
           fi
           
@@ -207,7 +210,7 @@ jobs:
           ls -lh "$NEW_NAME"
           
           echo "APK_FILE=$NEW_NAME" >> $GITHUB_ENV
-          echo "VERSION_TAG=$VERSION" >> $GITHUB_ENV
+          echo "VERSION_TAG=${{ env.VERSION_TAG }}" >> $GITHUB_ENV
           echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
 
       - name: Upload APK Artifact
