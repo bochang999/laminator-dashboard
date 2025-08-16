@@ -183,7 +183,7 @@ jobs:
           chmod +x gradlew
           
           echo "🔨 Starting Gradle build with version injection..."
-          ./gradlew assembleRelease \
+          ./gradlew clean assembleRelease \
             -Pandroid.injected.versionName="${{ env.VERSION_TAG }}" \
             -Pandroid.injected.versionCode="${{ github.run_number }}" \
             --no-daemon --stacktrace
@@ -193,7 +193,7 @@ jobs:
               echo "✅ Signed release APK created successfully"
               ls -la app/build/outputs/apk/release/app-release.apk
               
-              NEW_NAME="lamidash_${{ env.VERSION_TAG }}-signed.apk"
+              NEW_NAME="lamidash_${{ env.VERSION_TAG }}.apk"
               cp "app/build/outputs/apk/release/app-release.apk" "../$NEW_NAME"
               echo "📦 APK renamed to $NEW_NAME"
               BUILD_TYPE="signed"
