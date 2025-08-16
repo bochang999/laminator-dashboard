@@ -200,29 +200,63 @@ jobs:
           cp .github/templates/build.gradle.template android/app/build.gradle
           echo "✅ Golden template applied successfully."
 
-      - name: Build Base APK
+      - name: Build and Sign APK with Production Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          echo "🏗️ Building base APK for icon processing..."
+          echo "🏗️ Building production signed APK..."
+          
+          # GitHub Secretsの確認
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "❌ KEYSTORE_BASE64 is not set in GitHub Secrets"
+            exit 1
+          fi
+          
+          # キーストア復元
+          echo "$KEYSTORE_BASE64" | base64 -d > laminator-release.keystore
+          echo "✅ Production keystore restored successfully"
+          
+          # 署名設定ファイル作成
+          cat > keystore.properties <<EOF
+          storeFile=../laminator-release.keystore
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+          
           cd android
           chmod +x gradlew
           
-          echo "🔨 Starting Gradle build with version injection..."
+          # build.gradleを署名設定対応に修正
+          if ! grep -q "keystore.properties" app/build.gradle; then
+            echo "🔧 Adding keystore configuration to build.gradle..."
+            
+            # keystorePropertiesを読み込む設定を追加
+            sed -i '1a\\n// Load keystore properties\ndef keystorePropertiesFile = rootProject.file("../keystore.properties")\ndef keystoreProperties = new Properties()\nkeystoreProperties.load(new FileInputStream(keystorePropertiesFile))\n' app/build.gradle
+            
+            # signingConfigsセクションを追加
+            sed -i '/android {/a\\n    signingConfigs {\n        release {\n            keyAlias keystoreProperties["keyAlias"]\n            keyPassword keystoreProperties["keyPassword"]\n            storeFile file(keystoreProperties["storeFile"])\n            storePassword keystoreProperties["storePassword"]\n        }\n    }\n' app/build.gradle
+            
+            # buildTypesのreleaseに署名設定を追加
+            sed -i '/buildTypes {/,/release {/s/release {/release {\n            signingConfig signingConfigs.release/' app/build.gradle
+          fi
+          
+          echo "🔨 Building signed release APK..."
           ./gradlew clean assembleRelease \
             -Pandroid.injected.versionName="${{ env.VERSION_TAG }}" \
             -Pandroid.injected.versionCode="${{ github.run_number }}" \
-            --no-daemon --stacktrace || ./gradlew assembleDebug --no-daemon --stacktrace
+            --no-daemon --stacktrace
           
-          # Base APK確認
+          # APK確認
           if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
-              echo "✅ Release APK created successfully"
+              echo "✅ Signed release APK created successfully"
               BASE_APK="app/build/outputs/apk/release/app-release.apk"
-              BUILD_TYPE="release"
-          elif [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-              echo "✅ Debug APK created successfully"
-              BASE_APK="app/build/outputs/apk/debug/app-debug.apk"
-              BUILD_TYPE="debug"
+              BUILD_TYPE="production"
           else
-              echo "❌ No APK found"
+              echo "❌ Signed APK build failed"
               exit 1
           fi
           
@@ -230,17 +264,21 @@ jobs:
           echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
           cd ..
 
-      - name: Use Standard APK (Lightweight Version)
+      - name: Prepare Final APK (Production Signed + Lightweight)
         run: |
-          echo "📦 Using standard APK build (Ver.2.16.30 compatible)..."
+          echo "📦 Preparing final production signed APK..."
           
-          # 標準APKをそのまま使用
+          # 本番署名済みAPKをファイナル版として準備
           FINAL_NAME="lamidash_${{ env.VERSION_TAG }}.apk"
           cp "android/${{ env.BASE_APK }}" "./$FINAL_NAME"
           
-          echo "✅ Standard APK created: $FINAL_NAME"
+          echo "✅ Production signed APK ready: $FINAL_NAME"
           echo "📊 APK Information:"
           ls -lh "$FINAL_NAME"
+          
+          # 署名確認
+          echo "🔐 Verifying APK signature..."
+          aapt2 dump badging "$FINAL_NAME" | head -5
           
           echo "APK_FILE=$FINAL_NAME" >> $GITHUB_ENV
 

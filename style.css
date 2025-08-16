@@ -87,10 +87,13 @@ body {
     justify-content: space-between;
     align-items: center;
     box-shadow: var(--card-shadow);
-    position: sticky;
+    position: fixed; /* sticky から fixed に変更してタスクバー侵入を防止 */
     top: 0;
+    left: 0;
+    right: 0;
     z-index: 1000; /* ステータスバー重複問題を完全解決 */
     height: var(--header-height);
+    width: 100%; /* 全幅指定 */
 }
 
 .header-title h1 {
@@ -123,6 +126,7 @@ body {
 /* Main Dashboard */
 .main-dashboard {
     padding: 16px;
+    padding-top: 86px; /* ヘッダー高さ(70px) + マージン(16px) でコンテンツが隠れるのを防止 */
 }
 
 /* 最終終了予定時刻 */
