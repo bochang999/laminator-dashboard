@@ -86,23 +86,6 @@ jobs:
           
           echo "✅ Capacitor initialization completed successfully"
 
-      - name: Set App Version in Gradle
-        env:
-          RUN_NUMBER: ${{ github.run_number }}
-        run: |
-          echo "📋 Setting app version information..."
-          # versionNameをGitタグから設定
-          VERSION_NAME="v2.16-final"
-          # versionCodeをGitHubの実行番号に設定
-          VERSION_CODE=$RUN_NUMBER
-          
-          echo "🔧 Updating build.gradle with version info..."
-          sed -i "s/versionName \".*\"/versionName \"$VERSION_NAME\"/" android/app/build.gradle
-          sed -i "s/versionCode .*/versionCode $VERSION_CODE/" android/app/build.gradle
-          
-          echo "✅ versionName set to $VERSION_NAME"
-          echo "✅ versionCode set to $VERSION_CODE"
-
       - name: Sync Capacitor
         run: npx cap sync android
 
@@ -154,7 +137,10 @@ jobs:
           ./gradlew --version
           
           echo "🔨 Building release APK..."
-          ./gradlew assembleRelease --stacktrace --info > ../build.log 2>&1 || {
+          ./gradlew assembleRelease \
+            -Pandroid.injected.version.code="${{ github.run_number }}" \
+            -Pandroid.injected.version.name="v2.16-final" \
+            --stacktrace --info > ../build.log 2>&1 || {
             echo "❌ Build failed. Analyzing error log..."
             echo ""
             echo "🔍 FIRST 20 LINES:"
