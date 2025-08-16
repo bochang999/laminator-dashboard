@@ -48,7 +48,7 @@ jobs:
         run: npm install
 
       - name: Generate App Icons and Splash Screen
-        run: npx capacitor-assets generate --android
+        run: npx @capacitor/assets generate --android
 
       - name: Detect webDir (robust)
         id: detect
