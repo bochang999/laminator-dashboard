@@ -255,7 +255,7 @@ EOF
             
             ---
             🤖 **Auto Build**: GitHub Actions (Consistent-Signing-System)  
-            📅 **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')  
+            📅 **Build Date**: Auto-generated during build process  
             🔧 **Fix Applied**: Project-Specific Laminator Keystore for Permanent Update Compatibility
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
