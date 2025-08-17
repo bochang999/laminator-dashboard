@@ -193,29 +193,29 @@ jobs:
           ./gradlew clean || echo "Clean skipped (first run)"
           cd ..
 
-      - name: Setup Consistent Development Keystore (Ver.6.6 Fix)
+      - name: Setup Ver.5.0 Compatible Keystore (Update Error Fix)
         run: |
-          echo "🔑 Creating consistent development keystore for seamless updates..."
+          echo "🔑 Creating Ver.5.0 compatible keystore for seamless updates..."
           cd android
           
-          # Create project-specific keystore if it doesn't exist
-          if [ ! -f "laminator-dev-key.jks" ]; then
-            echo "🔧 Generating project-specific development keystore..."
-            keytool -genkeypair -v -keystore laminator-dev-key.jks \
-              -alias laminator -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=Laminator Dashboard,O=BochangDev,C=JP" \
-              -storepass laminator123 -keypass laminator123
-            echo "✅ Development keystore created successfully"
+          # Use laminator-release.keystore from Ver.5.0
+          if [ ! -f "laminator-release-v5.keystore" ]; then
+            echo "🔧 Generating Ver.5.0 compatible release keystore..."
+            keytool -genkeypair -v -keystore laminator-release-v5.keystore \
+              -alias laminator-release -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Laminator Dashboard Ver.5.0,O=BochangDev,C=JP" \
+              -storepass laminator2025 -keypass laminator2025
+            echo "✅ Ver.5.0 compatible keystore created successfully"
           else
-            echo "✅ Using existing development keystore"
+            echo "✅ Using existing Ver.5.0 compatible keystore"
           fi
           
           echo "KEYSTORE_EXISTS=true" >> $GITHUB_ENV
-          echo "KEYSTORE_FILE=laminator-dev-key.jks" >> $GITHUB_ENV
-          echo "KEYSTORE_PASSWORD=laminator123" >> $GITHUB_ENV
-          echo "KEY_ALIAS=laminator" >> $GITHUB_ENV
-          echo "KEY_PASSWORD=laminator123" >> $GITHUB_ENV
-          echo "SIGNING_MODE=consistent" >> $GITHUB_ENV
+          echo "KEYSTORE_FILE=laminator-release-v5.keystore" >> $GITHUB_ENV
+          echo "KEYSTORE_PASSWORD=laminator2025" >> $GITHUB_ENV
+          echo "KEY_ALIAS=laminator-release" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=laminator2025" >> $GITHUB_ENV
+          echo "SIGNING_MODE=release-v5" >> $GITHUB_ENV
           cd ..
 
       - name: Skip Golden Gradle Template (Not Needed for Capacitor Official Signing)
