@@ -1354,10 +1354,11 @@ class LaminatorDashboard {
                 <h3>フィルムセッション履歴</h3>
                 <div class="history-list">
                     ${this.filmSessions.map((session, index) => `
-                        <div class="history-item">
+                        <div class="history-item" onclick="dashboard.toggleSessionDetails('session-${session.id}')" style="cursor: pointer;">
                             <div class="history-header">
                                 <span>フィルム ${index + 1}</span>
                                 <span>${session.status === 'completed' ? '完了' : '進行中'}</span>
+                                <span class="toggle-indicator" id="toggle-session-${session.id}">▼</span>
                             </div>
                             <div class="history-details">
                                 ${session.jobs.length}ジョブ / ${session.jobs.reduce((sum, job) => {
@@ -1367,6 +1368,21 @@ class LaminatorDashboard {
                                     const procTime = job.processingTime || job.productionTime || 0;
                                     return sum + (isNaN(procTime) ? 0 : procTime);
                                 }, 0).toFixed(1)}分
+                            </div>
+                            <div class="session-job-details" id="session-${session.id}" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">
+                                <h4 style="font-size: 13px; margin-bottom: 8px; color: var(--primary-color);">ジョブ詳細</h4>
+                                ${session.jobs.map((job, jobIndex) => `
+                                    <div style="background: #f8f9fa; padding: 8px; margin: 4px 0; border-radius: 4px; font-size: 12px;">
+                                        <div style="font-weight: bold; color: ${job.completed ? '#27AE60' : '#6C757D'};">
+                                            ${job.completed ? '✓' : '○'} ${job.name || `ジョブ${jobIndex + 1}`}
+                                        </div>
+                                        <div style="color: #6C757D; margin-top: 2px;">
+                                            ${job.sheets || 0}枚 / ${((job.sheets || 0) * (job.usageLength || 0)).toFixed(2)}m / 
+                                            ${(job.processingTime || job.productionTime || 0).toFixed(1)}分
+                                            ${job.completed && job.completedAt ? ` / 完了: ${new Date(job.completedAt).toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'})}` : ''}
+                                        </div>
+                                    </div>
+                                `).join('')}
                             </div>
                         </div>
                     `).join('')}
@@ -1403,6 +1419,22 @@ class LaminatorDashboard {
     // レポート非表示
     hideReport() {
         document.getElementById('reportModal').classList.remove('active');
+    }
+
+    // セッション詳細の表示/非表示切り替え
+    toggleSessionDetails(sessionElementId) {
+        const element = document.getElementById(sessionElementId);
+        const toggleIndicator = document.getElementById(`toggle-${sessionElementId}`);
+        
+        if (element) {
+            if (element.style.display === 'none') {
+                element.style.display = 'block';
+                if (toggleIndicator) toggleIndicator.textContent = '▲';
+            } else {
+                element.style.display = 'none';
+                if (toggleIndicator) toggleIndicator.textContent = '▼';
+            }
+        }
     }
 
     // 現在時刻更新
@@ -2208,6 +2240,7 @@ let dashboard;
 
 document.addEventListener('DOMContentLoaded', () => {
     dashboard = new LaminatorDashboard();
+    window.dashboard = dashboard;  // HTMLから呼び出し可能にする
     
     // ヘッダーボタンのイベントリスナー設定（Ver.2.5 バグ修正）
     const logTrigger = document.getElementById('log-page-trigger-icon');
