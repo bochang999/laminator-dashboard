@@ -1,22 +1,80 @@
-// ===== Capacitor プラグイン設定 Ver.3.1 =====
-// Web環境とAPK環境の互換性を確保するCapacitor設定
-let CapacitorPreferences, CapacitorFilesystem, CapacitorDirectory, CapacitorEncoding;
+// ===== Capacitor プラグイン設定 Ver.4.0 =====
+// MCPサーバー調査結果に基づく正式実装パターン
+let CapacitorPreferences, CapacitorFilesystem;
+let isCapacitorEnvironment = false;
 
-document.addEventListener('DOMContentLoaded', async () => {
+// Capacitor環境判定とプラグイン初期化
+async function initializeCapacitor() {
     try {
-        // Capacitorが利用可能な場合はプラグインを使用
-        if (window.Capacitor && window.Capacitor.Plugins) {
-            CapacitorPreferences = window.Capacitor.Plugins.Preferences;
-            CapacitorFilesystem = window.Capacitor.Plugins.Filesystem;
-            CapacitorDirectory = window.Capacitor.Plugins.Filesystem.Directory;
-            CapacitorEncoding = window.Capacitor.Plugins.Filesystem.Encoding;
-            console.log('Capacitor環境を検出しました - ネイティブAPIを使用');
+        console.log('Capacitor環境判定を開始...');
+        
+        // Capacitor本体の存在確認
+        if (typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform) {
+            console.log('ネイティブプラットフォーム環境を検出');
+            isCapacitorEnvironment = true;
+            
+            // 動的インポートでプラグインを読み込み
+            try {
+                const { Preferences } = await import('https://unpkg.com/@capacitor/preferences@7/dist/esm/index.js');
+                const { Filesystem, Directory, Encoding } = await import('https://unpkg.com/@capacitor/filesystem@7/dist/esm/index.js');
+                
+                CapacitorPreferences = Preferences;
+                CapacitorFilesystem = Filesystem;
+                
+                console.log('✅ Capacitor Preferences & Filesystem プラグイン初期化成功');
+                
+                // 保存テスト実行
+                await testCapacitorPreferences();
+                
+            } catch (pluginError) {
+                console.error('❌ Capacitorプラグイン読み込みエラー:', pluginError);
+                isCapacitorEnvironment = false;
+            }
         } else {
-            console.log('Web環境を検出しました - Fallbackを使用');
+            console.log('Web環境を検出 - localStorage fallbackを使用');
+            isCapacitorEnvironment = false;
         }
     } catch (error) {
-        console.warn('Capacitor初期化エラー:', error);
+        console.error('❌ Capacitor初期化エラー:', error);
+        isCapacitorEnvironment = false;
     }
+}
+
+// Capacitor Preferences動作テスト
+async function testCapacitorPreferences() {
+    if (!CapacitorPreferences) return;
+    
+    try {
+        const testKey = 'capacitor_test_key';
+        const testValue = 'test_success_' + Date.now();
+        
+        // 書き込みテスト
+        await CapacitorPreferences.set({
+            key: testKey,
+            value: testValue
+        });
+        
+        // 読み込みテスト
+        const result = await CapacitorPreferences.get({ key: testKey });
+        
+        if (result.value === testValue) {
+            console.log('✅ Capacitor Preferences 読み書きテスト成功');
+            
+            // テストデータクリーンアップ
+            await CapacitorPreferences.remove({ key: testKey });
+        } else {
+            console.error('❌ Capacitor Preferences テスト失敗: 読み込み値が不一致');
+            isCapacitorEnvironment = false;
+        }
+    } catch (error) {
+        console.error('❌ Capacitor Preferences テストエラー:', error);
+        isCapacitorEnvironment = false;
+    }
+}
+
+// DOM読み込み完了時にCapacitor初期化実行
+document.addEventListener('DOMContentLoaded', async () => {
+    await initializeCapacitor();
 });
 
 // =====ここからログシステム Ver.2.4 =====
@@ -1582,23 +1640,26 @@ class LaminatorDashboard {
         const filename = `laminator_report_${new Date().toISOString().split('T')[0]}.csv`;
 
         try {
-            if (CapacitorFilesystem && CapacitorDirectory && CapacitorEncoding) {
-                // APK環境: Capacitor Filesystem使用
+            if (isCapacitorEnvironment && CapacitorFilesystem) {
+                // APK環境: Capacitor Filesystem API使用
+                console.log('🔄 Capacitor Filesystem APIでCSVエクスポート...');
+                
                 await CapacitorFilesystem.writeFile({
                     path: filename,
                     data: csvContent,
-                    directory: CapacitorDirectory.Documents,
-                    encoding: CapacitorEncoding.UTF8
+                    directory: 'DOCUMENTS', // Directory.Documents の文字列定数
+                    encoding: 'utf8' // Encoding.UTF8 の文字列定数
                 });
                 
-                console.log('CSV エクスポート完了:', completedJobs.length + '件');
+                console.log('✅ CSV エクスポート完了:', completedJobs.length + '件');
                 this.showToast(`CSV を Documents/${filename} に保存しました (${completedJobs.length}件)`, 'success');
             } else {
                 // Web環境: Blob download fallback
+                console.log('🔄 Webブラウザ環境でCSVダウンロード...');
                 this.fallbackCsvDownload(csvContent, filename, completedJobs.length);
             }
         } catch (error) {
-            console.warn('Filesystem保存失敗、fallbackを使用:', error);
+            console.warn('❌ Filesystem保存失敗、fallbackを使用:', error);
             this.fallbackCsvDownload(csvContent, filename, completedJobs.length);
         }
     }
@@ -1678,46 +1739,79 @@ class LaminatorDashboard {
             timeSettings: this.timeSettings
         };
         
+        const dataString = JSON.stringify(data);
+        const dataKey = 'laminator_dashboard_v3';
+        
         try {
-            if (CapacitorPreferences) {
-                // APK環境: Capacitor Storage使用
+            if (isCapacitorEnvironment && CapacitorPreferences) {
+                // APK環境: Capacitor Preferences API使用（公式実装パターン）
+                console.log('🔄 Capacitor Preferences APIでデータ保存を実行...');
+                
                 await CapacitorPreferences.set({
-                    key: 'laminator_dashboard_v3',
-                    value: JSON.stringify(data)
+                    key: dataKey,
+                    value: dataString
                 });
-                console.log('Capacitor Storageにデータを保存しました');
+                
+                // 保存確認のための読み戻しテスト
+                const verification = await CapacitorPreferences.get({ key: dataKey });
+                if (verification.value === dataString) {
+                    console.log('✅ Capacitor Preferencesに正常保存完了');
+                    console.log(`📊 保存データサイズ: ${Math.round(dataString.length / 1024 * 100) / 100}KB`);
+                } else {
+                    throw new Error('保存データの検証に失敗');
+                }
+                
             } else {
                 // Web環境: localStorage fallback
-                localStorage.setItem('laminator_dashboard_v3', JSON.stringify(data));
-                console.log('localStorageにデータを保存しました');
+                console.log('🔄 localStorage fallbackでデータ保存...');
+                localStorage.setItem(dataKey, dataString);
+                console.log('✅ localStorageに保存完了');
             }
+            
         } catch (error) {
-            console.error('データ保存エラー:', error);
-            // Fallback to localStorage even in APK environment
+            console.error('❌ データ保存エラー:', error);
+            
+            // 重要: APK環境でもfallbackとしてlocalStorageを試行
             try {
-                localStorage.setItem('laminator_dashboard_v3', JSON.stringify(data));
-                console.log('Fallback: localStorageを使用');
+                console.log('🔄 緊急fallback: localStorageで保存を試行...');
+                localStorage.setItem(dataKey, dataString);
+                console.log('✅ Fallback保存成功: localStorage使用');
             } catch (fallbackError) {
-                console.error('Fallback保存も失敗:', fallbackError);
-                this.showToast('データの保存に失敗しました', 'error');
+                console.error('❌ 全ての保存方法が失敗:', fallbackError);
+                this.showToast('データの保存に失敗しました。アプリを再起動してください。', 'error');
             }
         }
     }
 
-    // データ読み込み (Capacitor Storage対応版)
+    // データ読み込み (Capacitor Preferences対応版)
     async loadData() {
         try {
             let rawData = null;
+            const dataKey = 'laminator_dashboard_v3';
             
-            if (CapacitorPreferences) {
-                // APK環境: Capacitor Storage使用
-                const result = await CapacitorPreferences.get({ key: 'laminator_dashboard_v3' });
+            if (isCapacitorEnvironment && CapacitorPreferences) {
+                // APK環境: Capacitor Preferences API使用
+                console.log('🔄 Capacitor Preferences APIからデータ読み込み...');
+                
+                const result = await CapacitorPreferences.get({ key: dataKey });
                 rawData = result.value;
-                console.log('Capacitor Storageからデータを読み込みました');
+                
+                if (rawData) {
+                    console.log('✅ Capacitor Preferencesからデータ読み込み成功');
+                    console.log(`📊 読み込みデータサイズ: ${Math.round(rawData.length / 1024 * 100) / 100}KB`);
+                } else {
+                    console.log('ℹ️ Capacitor Preferences: 保存データなし（初回起動）');
+                }
             } else {
                 // Web環境: localStorage fallback
-                rawData = localStorage.getItem('laminator_dashboard_v3');
-                console.log('localStorageからデータを読み込みました');
+                console.log('🔄 localStorage fallbackからデータ読み込み...');
+                rawData = localStorage.getItem(dataKey);
+                
+                if (rawData) {
+                    console.log('✅ localStorageからデータ読み込み成功');
+                } else {
+                    console.log('ℹ️ localStorage: 保存データなし（初回起動）');
+                }
             }
             
             const data = rawData ? JSON.parse(rawData) : {};
@@ -2275,14 +2369,17 @@ class LaminatorDashboard {
     async backupData() {
         try {
             let data = null;
+            const dataKey = 'laminator_dashboard_v3';
             
-            if (CapacitorPreferences) {
-                // APK環境: Capacitor Storage使用
-                const result = await CapacitorPreferences.get({ key: 'laminator_dashboard_v3' });
+            if (isCapacitorEnvironment && CapacitorPreferences) {
+                // APK環境: Capacitor Preferences使用
+                console.log('🔄 Capacitor Preferencesからバックアップデータ取得...');
+                const result = await CapacitorPreferences.get({ key: dataKey });
                 data = result.value;
             } else {
                 // Web環境: localStorage使用
-                data = localStorage.getItem('laminator_dashboard_v3');
+                console.log('🔄 localStorageからバックアップデータ取得...');
+                data = localStorage.getItem(dataKey);
             }
             
             if (!data) {
@@ -2296,26 +2393,32 @@ class LaminatorDashboard {
                 String(today.getDate()).padStart(2, '0');
             const filename = `lami-ope-backup-${dateStr}.json`;
 
-            if (CapacitorFilesystem && CapacitorDirectory && CapacitorEncoding) {
-                // APK環境: Capacitor Filesystem使用
+            if (isCapacitorEnvironment && CapacitorFilesystem) {
+                // APK環境: Capacitor Filesystem API使用
                 try {
+                    console.log('🔄 Capacitor Filesystem APIでファイル書き込み...');
+                    
                     await CapacitorFilesystem.writeFile({
                         path: filename,
                         data: data,
-                        directory: CapacitorDirectory.Documents,
-                        encoding: CapacitorEncoding.UTF8
+                        directory: 'DOCUMENTS', // Directory.Documents の文字列定数
+                        encoding: 'utf8' // Encoding.UTF8 の文字列定数
                     });
+                    
+                    console.log('✅ Capacitor Filesystemでバックアップ保存成功');
                     this.showToast(`バックアップファイルをDocuments/${filename}に保存しました`, 'success');
+                    
                 } catch (fsError) {
-                    console.warn('Filesystem保存失敗、blob保存にfallback:', fsError);
+                    console.warn('❌ Filesystem保存失敗、blob保存にfallback:', fsError);
                     this.fallbackBlobDownload(data, filename);
                 }
             } else {
                 // Web環境またはfallback: blob保存
+                console.log('🔄 Webブラウザ環境でblob保存実行...');
                 this.fallbackBlobDownload(data, filename);
             }
         } catch (error) {
-            console.error('バックアップエラー:', error);
+            console.error('❌ バックアップエラー:', error);
             this.showToast('バックアップに失敗しました', 'error');
         }
     }
@@ -2348,7 +2451,7 @@ class LaminatorDashboard {
         fileInput.click();
     }
 
-    // データ復元機能 (Capacitor対応版)
+    // データ復元機能 (Capacitor Preferences対応版)
     async restoreData(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -2358,18 +2461,23 @@ class LaminatorDashboard {
             try {
                 const data = e.target.result;
                 JSON.parse(data); // 有効なJSONかチェック
+                const dataKey = 'laminator_dashboard_v3';
                 
-                if (CapacitorPreferences) {
-                    // APK環境: Capacitor Storage使用
+                if (isCapacitorEnvironment && CapacitorPreferences) {
+                    // APK環境: Capacitor Preferences使用
+                    console.log('🔄 Capacitor Preferencesに復元データ保存...');
+                    
                     await CapacitorPreferences.set({
-                        key: 'laminator_dashboard_v3',
+                        key: dataKey,
                         value: data
                     });
-                    console.log('Capacitor Storageに復元しました');
+                    
+                    console.log('✅ Capacitor Preferencesに復元完了');
                 } else {
                     // Web環境: localStorage使用
-                    localStorage.setItem('laminator_dashboard_v3', data);
-                    console.log('localStorageに復元しました');
+                    console.log('🔄 localStorageに復元データ保存...');
+                    localStorage.setItem(dataKey, data);
+                    console.log('✅ localStorageに復元完了');
                 }
                 
                 this.showToast('復元が完了しました。ページを更新します。', 'success');
