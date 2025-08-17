@@ -1,5 +1,5 @@
-// 完全機能版アプリ Ver.6.8 - RecipeBox実証済みシームレス更新版
-console.log('🚀 Ver.6.8 RecipeBox実証済みシームレス更新版開始');
+// 完全機能版アプリ Ver.6.9 - Capacitor公式署名システム版
+console.log('🚀 Ver.6.9 Capacitor公式署名システム版開始');
 
 // 拡張ダッシュボードクラス
 class SimpleDashboard {
@@ -415,7 +415,7 @@ class SimpleDashboard {
 
     showToast(message, type) {
         console.log(`📢 Toast: ${message} (${type})`);
-        alert(`Ver.6.8: ${message}`);
+        alert(`Ver.6.9: ${message}`);
     }
 }
 
