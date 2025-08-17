@@ -1,88 +1,25 @@
-// ===== APK専用ネイティブファイル保存システム Ver.6.0 =====
-// Capacitor Filesystem APIによる確実なデータ永続化
-let CapacitorFilesystem, Directory, Encoding;
+// ===== 基本動作確保版 Ver.6.1 =====
+// APK環境での基本機能を最優先
 let isCapacitorEnvironment = false;
-let nativeFileSystemAvailable = false;
 
-// APK環境でのネイティブファイルシステム初期化
-async function initializeCapacitor() {
+// シンプルな環境判定
+function initializeCapacitor() {
     try {
-        console.log('🔍 APK環境判定とネイティブファイルシステム初期化...');
+        console.log('🔍 環境判定開始...');
         
-        // Capacitor本体の存在確認
         if (typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform) {
-            console.log('✅ APK（ネイティブ）環境を検出');
+            console.log('✅ APK環境を検出');
             isCapacitorEnvironment = true;
-            
-            // Filesystem API の動的インポート
-            try {
-                const FilesystemModule = await import('https://unpkg.com/@capacitor/filesystem@7/dist/esm/index.js');
-                CapacitorFilesystem = FilesystemModule.Filesystem;
-                Directory = FilesystemModule.Directory;
-                Encoding = FilesystemModule.Encoding;
-                
-                console.log('✅ Capacitor Filesystem API 初期化成功');
-                
-                // ネイティブファイルシステムテスト
-                await testNativeFileSystem();
-                
-            } catch (pluginError) {
-                console.error('❌ Filesystem APIエラー:', pluginError);
-                isCapacitorEnvironment = false;
-            }
         } else {
-            console.log('🌐 Web環境を検出 - localStorage使用');
+            console.log('🌐 Web環境を検出');
             isCapacitorEnvironment = false;
         }
     } catch (error) {
-        console.error('❌ 初期化エラー:', error);
+        console.error('❌ 環境判定エラー:', error);
         isCapacitorEnvironment = false;
     }
 }
 
-// ネイティブファイルシステム動作テスト
-async function testNativeFileSystem() {
-    if (!CapacitorFilesystem) return;
-    
-    try {
-        const testData = {
-            test: true,
-            timestamp: new Date().toISOString(),
-            message: 'ネイティブファイルシステムテスト成功'
-        };
-        
-        // テストファイル書き込み
-        await CapacitorFilesystem.writeFile({
-            path: 'test_file.json',
-            data: JSON.stringify(testData),
-            directory: Directory.Data,
-            encoding: Encoding.UTF8
-        });
-        
-        // テストファイル読み込み
-        const result = await CapacitorFilesystem.readFile({
-            path: 'test_file.json',
-            directory: Directory.Data,
-            encoding: Encoding.UTF8
-        });
-        
-        const readData = JSON.parse(result.data);
-        if (readData.test === true) {
-            console.log('✅ ネイティブファイルシステム動作確認成功');
-            nativeFileSystemAvailable = true;
-            
-            // テストファイル削除
-            await CapacitorFilesystem.deleteFile({
-                path: 'test_file.json',
-                directory: Directory.Data
-            });
-        }
-        
-    } catch (error) {
-        console.error('❌ ネイティブファイルシステムテスト失敗:', error);
-        nativeFileSystemAvailable = false;
-    }
-}
     
     try {
         const testKey = 'capacitor_test_key';
@@ -112,19 +49,10 @@ async function testNativeFileSystem() {
     }
 }
 
-// DOM読み込み完了時にCapacitor初期化実行
-document.addEventListener('DOMContentLoaded', async () => {
-    await initializeCapacitor();
-    
-    // Capacitor Preferencesの追加設定
-    if (isCapacitorEnvironment && CapacitorPreferences) {
-        await configureCapacitorPreferences();
-    }
-    
-    // IndexedDBフォールバック初期化
-    if (!isCapacitorEnvironment) {
-        await initializeIndexedDB();
-    }
+// DOM読み込み完了時に初期化実行
+document.addEventListener('DOMContentLoaded', () => {
+    initializeCapacitor();
+    console.log('✅ 初期化完了');
 });
 
 // Capacitor Preferences詳細設定
@@ -1970,121 +1898,35 @@ class LaminatorDashboard {
             workStarted: this.workStarted,
             workStartTime: this.workStartTime,
             targetEndTime: this.targetEndTime,
-            timeSettings: this.timeSettings,
-            saveTimestamp: new Date().toISOString()
+            timeSettings: this.timeSettings
         };
         
-        const dataString = JSON.stringify(data, null, 2);
+        const dataString = JSON.stringify(data);
+        const dataKey = 'laminator_dashboard_v3';
         
-        console.log('🔄 APK専用ネイティブファイル保存システム開始...');
+        console.log('🔄 データ保存開始...');
         
         try {
-            // === APK環境: ネイティブファイルシステム保存 ===
-            if (isCapacitorEnvironment && CapacitorFilesystem && nativeFileSystemAvailable) {
-                console.log('🔄 ネイティブファイルシステムでデータ保存中...');
-                
-                // メインデータファイルに保存
-                await CapacitorFilesystem.writeFile({
-                    path: 'laminator_data.json',
-                    data: dataString,
-                    directory: Directory.Data,
-                    encoding: Encoding.UTF8
-                });
-                
-                // 保存確認のため読み戻しテスト
-                const verification = await CapacitorFilesystem.readFile({
-                    path: 'laminator_data.json',
-                    directory: Directory.Data,
-                    encoding: Encoding.UTF8
-                });
-                
-                if (verification.data) {
-                    const verifyData = JSON.parse(verification.data);
-                    if (verifyData.saveTimestamp === data.saveTimestamp) {
-                        console.log('✅ ネイティブファイル保存成功!');
-                        console.log(`📊 保存ファイルサイズ: ${Math.round(verification.data.length / 1024 * 100) / 100}KB`);
-                        console.log(`📁 保存場所: Android内部ストレージ/Data/laminator_data.json`);
-                        
-                        this.showToast('データを安全に保存しました', 'success');
-                        return; // 成功時は終了
-                    } else {
-                        throw new Error('ファイル保存検証に失敗 - データ不整合');
-                    }
-                } else {
-                    throw new Error('ファイル読み戻しに失敗');
-                }
-            }
-            
-            // === Web環境フォールバック: localStorage ===
-            console.log('🔄 Web環境フォールバック: localStorage...');
-            localStorage.setItem('laminator_dashboard_v3', dataString);
-            
-            // localStorage保存確認
-            const localStorageVerification = localStorage.getItem('laminator_dashboard_v3');
-            if (localStorageVerification) {
-                const verifyData = JSON.parse(localStorageVerification);
-                if (verifyData.saveTimestamp === data.saveTimestamp) {
-                    console.log('✅ localStorage保存成功');
-                    console.log(`📊 保存データサイズ: ${Math.round(dataString.length / 1024 * 100) / 100}KB`);
-                    this.showToast('データを保存しました (Web版)', 'success');
-                    return;
-                } else {
-                    throw new Error('localStorage保存検証に失敗');
-                }
-            } else {
-                throw new Error('localStorage保存に失敗');
-            }
+            // シンプルなlocalStorage保存
+            localStorage.setItem(dataKey, dataString);
+            console.log('✅ データ保存成功');
             
         } catch (error) {
             console.error('❌ データ保存失敗:', error);
-            console.error('🔍 環境情報:');
-            console.error('- APK環境:', isCapacitorEnvironment);
-            console.error('- ファイルシステム利用可能:', nativeFileSystemAvailable);
-            console.error('- Filesystem API:', !!CapacitorFilesystem);
-            console.error('- データサイズ:', dataString.length, 'バイト');
-            
-            this.showToast('データ保存に失敗しました。システムログを確認してください。', 'error');
+            this.showToast('データ保存に失敗しました', 'error');
         }
     }
 
-    // データ読み込み (ネイティブファイルシステム対応版)
+    // データ読み込み (基本版)
     async loadData() {
         try {
-            let rawData = null;
+            console.log('🔄 データ読み込み開始...');
+            const rawData = localStorage.getItem('laminator_dashboard_v3');
             
-            // === APK環境: ネイティブファイルシステム読み込み ===
-            if (isCapacitorEnvironment && CapacitorFilesystem && nativeFileSystemAvailable) {
-                console.log('🔄 ネイティブファイルシステムからデータ読み込み...');
-                
-                try {
-                    const result = await CapacitorFilesystem.readFile({
-                        path: 'laminator_data.json',
-                        directory: Directory.Data,
-                        encoding: Encoding.UTF8
-                    });
-                    
-                    rawData = result.data;
-                    
-                    if (rawData) {
-                        console.log('✅ ネイティブファイルからデータ読み込み成功');
-                        console.log(`📊 読み込みファイルサイズ: ${Math.round(rawData.length / 1024 * 100) / 100}KB`);
-                        console.log(`📁 読み込み場所: Android内部ストレージ/Data/laminator_data.json`);
-                    }
-                } catch (fileError) {
-                    console.log('ℹ️ ネイティブファイル: 保存データなし（初回起動またはファイル未作成）', fileError.message);
-                    rawData = null;
-                }
+            if (rawData) {
+                console.log('✅ データ読み込み成功');
             } else {
-                // === Web環境: localStorage fallback ===
-                console.log('🔄 Web環境: localStorageからデータ読み込み...');
-                rawData = localStorage.getItem('laminator_dashboard_v3');
-                
-                if (rawData) {
-                    console.log('✅ localStorageからデータ読み込み成功');
-                    console.log(`📊 読み込みデータサイズ: ${Math.round(rawData.length / 1024 * 100) / 100}KB`);
-                } else {
-                    console.log('ℹ️ localStorage: 保存データなし（初回起動）');
-                }
+                console.log('ℹ️ 保存データなし（初回起動）');
             }
             
             const data = rawData ? JSON.parse(rawData) : {};
