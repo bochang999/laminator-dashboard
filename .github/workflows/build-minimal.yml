@@ -1,4 +1,4 @@
-name: Build Laminator Dashboard APK (Production Ready)
+name: Build Laminator Dashboard APK (Consistent Signing)
 
 on:
   push:
@@ -135,14 +135,14 @@ EOF
           echo "📋 Gradle version info..."
           ./gradlew --version
           
-          echo "🔨 Building signed release APK with development keystore..."
+          echo "🔨 Building signed release APK with consistent laminator keystore..."
           ./gradlew assembleRelease \
             -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/$KEYSTORE_FILE" \
             -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
             -Pandroid.injected.signing.key.password="$KEY_PASSWORD" \
             -Pandroid.injected.version.code="${{ github.run_number }}" \
-            -Pandroid.injected.version.name="6.${{ github.run_number }}" \
+            -Pandroid.injected.version.name="6.6.${{ github.run_number }}" \
             --stacktrace --info > ../build.log 2>&1 || {
               echo "❌ Signed build failed. Analyzing error log..."
               echo "🔍 FIRST 20 LINES:"
@@ -165,7 +165,7 @@ EOF
           
           if [ -f "$APK_PATH" ]; then
             TIMESTAMP=$(date +%Y%m%d-%H%M)
-            VERSION="v6.4-seamless-${TIMESTAMP}"
+            VERSION="v6.6-consistent-${TIMESTAMP}"
             NEW_NAME="LaminatorDashboard-${VERSION}-signed.apk"
             
             echo "✅ Found signed APK: $APK_PATH"
@@ -220,12 +220,13 @@ EOF
             2. 🔓 Enable "Install from Unknown Sources" on your Android device
             3. 📱 Tap the APK file to install
             
-            ## 🆕 Ver.6.4 Key Improvements
+            ## 🆕 Ver.6.6 Key Improvements
+            - 🔧 **Signing System Fixed**: Consistent laminator-dev-key.jks for all builds
             - ✅ **Seamless Updates**: No more uninstall/reinstall required
-            - ✅ **Consistent Signing**: Fixed development keystore for update compatibility
-            - ⏰ **Working Time Management**: Business start, lunch break tracking
-            - 📊 **Basic Dashboard**: Time display and job tracking foundation
-            - 🔧 **Settings Panel**: User preferences and data management
+            - ⏰ **Complete Time Management**: Advanced time calculation and tracking
+            - 📊 **Full Dashboard**: Real-time finish time calculation and job management
+            - 🔧 **Settings Panel**: Complete user preferences and data management
+            - 💾 **Data Persistence**: Full localStorage-based settings and job history
             
             ## 🔧 Technical Specifications
             - **Build Environment**: Ubuntu Latest + Node.js ${{ env.NODE_VERSION }} + Java ${{ env.JAVA_VERSION }}
@@ -234,11 +235,11 @@ EOF
             - **APK Type**: Signed Release (seamless updates enabled)
             - **Compatibility**: Android 7.0+ recommended
             
-            ## 🎯 Critical Update Fix
-            - 🔑 **Fixed Signing System**: Consistent keystore prevents "package conflicts"
-            - 🔄 **Update Compatibility**: All future versions will update seamlessly
-            - ⚠️ **One-Time Migration**: This version may require uninstall if upgrading from debug builds
-            - ✅ **Future-Proof**: No more installation issues going forward
+            ## 🎯 Critical Signing Fix
+            - 🔑 **Laminator Keystore**: Project-specific laminator-dev-key.jks for all versions
+            - 🔄 **Update Compatibility**: All Ver.6.6+ will update seamlessly over each other
+            - ⚠️ **One-Time Migration**: This version may require uninstall from Ver.6.5 (different signing)
+            - ✅ **Future-Proof**: Consistent signing prevents package conflicts permanently
             
             ## 📈 Build Information
             - **Version**: ${{ env.VERSION_TAG }}
@@ -253,8 +254,8 @@ EOF
             - Settings and data will be preserved across updates
             
             ---
-            🤖 **Auto Build**: GitHub Actions (Seamless-Update-System)  
+            🤖 **Auto Build**: GitHub Actions (Consistent-Signing-System)  
             📅 **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')  
-            🔧 **Fix Applied**: Consistent APK Signing for Update Compatibility
+            🔧 **Fix Applied**: Project-Specific Laminator Keystore for Permanent Update Compatibility
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
