@@ -218,12 +218,10 @@ jobs:
           echo "SIGNING_MODE=consistent" >> $GITHUB_ENV
           cd ..
 
-      - name: Apply Golden Gradle Template
+      - name: Skip Golden Gradle Template (Not Needed for Capacitor Official Signing)
         run: |
-          echo "🏆 Applying golden build.gradle template..."
-          mkdir -p .github/templates || true
-          cp .github/templates/build.gradle.template android/app/build.gradle
-          echo "✅ Golden template applied successfully."
+          echo "ℹ️ Skipping golden template - using Capacitor official signing configuration instead..."
+          echo "✅ Template step skipped for Capacitor methodology."
 
       - name: Configure Build Gradle for Capacitor Signing
         run: |
@@ -233,30 +231,29 @@ jobs:
             echo "📝 Updating build.gradle for official Capacitor signing system..."
             
             # Capacitorの公式署名システム用にsigningConfigsを設定
-            cat > android/app/build.gradle.signing << 'EOF'
-
-android {
-    signingConfigs {
-        release {
-            if (project.hasProperty('LAMINATOR_STORE_FILE')) {
-                storeFile file(project.property('LAMINATOR_STORE_FILE'))
-                storePassword project.property('LAMINATOR_STORE_PASSWORD')
-                keyAlias project.property('LAMINATOR_KEY_ALIAS')
-                keyPassword project.property('LAMINATOR_KEY_PASSWORD')
+            cat > android/app/build.gradle.signing << 'GRADLE_EOF'
+            android {
+                signingConfigs {
+                    release {
+                        if (project.hasProperty('LAMINATOR_STORE_FILE')) {
+                            storeFile file(project.property('LAMINATOR_STORE_FILE'))
+                            storePassword project.property('LAMINATOR_STORE_PASSWORD')
+                            keyAlias project.property('LAMINATOR_KEY_ALIAS')
+                            keyPassword project.property('LAMINATOR_KEY_PASSWORD')
+                        }
+                    }
+                }
+                
+                buildTypes {
+                    release {
+                        signingConfig signingConfigs.release
+                    }
+                    debug {
+                        signingConfig signingConfigs.release
+                    }
+                }
             }
-        }
-    }
-    
-    buildTypes {
-        release {
-            signingConfig signingConfigs.release
-        }
-        debug {
-            signingConfig signingConfigs.release  // 一貫性のため
-        }
-    }
-}
-EOF
+            GRADLE_EOF
             
             # 既存のbuild.gradleに署名設定を統合
             if grep -q "signingConfigs" android/app/build.gradle; then
