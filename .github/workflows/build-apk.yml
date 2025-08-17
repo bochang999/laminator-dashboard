@@ -232,28 +232,28 @@ jobs:
             
             # Capacitorの公式署名システム用にsigningConfigsを設定
             cat > android/app/build.gradle.signing << 'GRADLE_EOF'
-android {
-    signingConfigs {
-        release {
-            if (project.hasProperty('LAMINATOR_STORE_FILE')) {
-                storeFile file(project.property('LAMINATOR_STORE_FILE'))
-                storePassword project.property('LAMINATOR_STORE_PASSWORD')
-                keyAlias project.property('LAMINATOR_KEY_ALIAS')
-                keyPassword project.property('LAMINATOR_KEY_PASSWORD')
-            }
-        }
-    }
-    
-    buildTypes {
-        release {
-            signingConfig signingConfigs.release
-        }
-        debug {
-            signingConfig signingConfigs.release
-        }
-    }
-}
-GRADLE_EOF
+          android {
+              signingConfigs {
+                  release {
+                      if (project.hasProperty('LAMINATOR_STORE_FILE')) {
+                          storeFile file(project.property('LAMINATOR_STORE_FILE'))
+                          storePassword project.property('LAMINATOR_STORE_PASSWORD')
+                          keyAlias project.property('LAMINATOR_KEY_ALIAS')
+                          keyPassword project.property('LAMINATOR_KEY_PASSWORD')
+                      }
+                  }
+              }
+              
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+                  debug {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          GRADLE_EOF
             
             # 既存のbuild.gradleに署名設定を統合
             if grep -q "signingConfigs" android/app/build.gradle; then
