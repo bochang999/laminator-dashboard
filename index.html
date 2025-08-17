@@ -66,6 +66,82 @@
                     </div>
                 </div>
 
+                <!-- ジョブ追加エリア -->
+                <div class="job-input-area card">
+                    <h4>🎞️ ラミネートジョブ追加</h4>
+                    
+                    <!-- フィルムロール管理 -->
+                    <div class="film-roll-section">
+                        <div class="form-group">
+                            <label>フィルムロール</label>
+                            <div class="film-roll-controls">
+                                <select id="currentFilmRoll" onchange="dashboard.selectFilmRoll()">
+                                    <option value="">フィルムロールを選択</option>
+                                </select>
+                                <button class="btn-small" onclick="dashboard.addNewFilmRoll()">新規ロール</button>
+                            </div>
+                        </div>
+                        <div class="film-info" id="filmInfo" style="display: none;">
+                            <span id="filmRemaining">残り: --m</span>
+                            <span id="filmType">タイプ: --</span>
+                        </div>
+                    </div>
+
+                    <!-- ジョブ詳細入力 -->
+                    <div class="job-details-section">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>ジョブ名</label>
+                                <input type="text" id="jobName" placeholder="例: A4チラシ印刷">
+                            </div>
+                            <div class="form-group">
+                                <label>枚数</label>
+                                <input type="number" id="jobSheets" min="1" placeholder="枚数">
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>サイズ</label>
+                                <select id="jobSize">
+                                    <option value="A4">A4 (210×297mm)</option>
+                                    <option value="A3">A3 (297×420mm)</option>
+                                    <option value="B4">B4 (257×364mm)</option>
+                                    <option value="B5">B5 (182×257mm)</option>
+                                    <option value="custom">カスタム</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="customSizeGroup" style="display: none;">
+                                <label>カスタムサイズ (mm)</label>
+                                <div class="size-inputs">
+                                    <input type="number" id="customWidth" placeholder="幅" min="1">
+                                    <span>×</span>
+                                    <input type="number" id="customHeight" placeholder="高さ" min="1">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>作業時間/枚 (秒)</label>
+                                <input type="number" id="timePerSheet" value="30" min="1" step="1">
+                            </div>
+                            <div class="form-group">
+                                <label>優先度</label>
+                                <select id="jobPriority">
+                                    <option value="normal">通常</option>
+                                    <option value="high">高</option>
+                                    <option value="urgent">緊急</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary" onclick="dashboard.addJob()" style="width: 100%; margin-top: 10px;">
+                            📋 ジョブを追加
+                        </button>
+                    </div>
+                </div>
+
             </section>
 
             <!-- ジョブリスト表示エリア -->

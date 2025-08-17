@@ -1,12 +1,15 @@
-// 完全機能版アプリ Ver.6.9 - Capacitor公式署名システム版
-console.log('🚀 Ver.6.9 Capacitor公式署名システム版開始');
+// ラミネーター・ダッシュボード Ver.6.10 - 完全機能復旧版
+console.log('🚀 Ver.6.10 ラミネーター・ダッシュボード完全機能復旧版開始');
 
-// 拡張ダッシュボードクラス
-class SimpleDashboard {
+// ラミネート作業計算ダッシュボードクラス
+class LaminatorDashboard {
     constructor() {
-        console.log('📊 SimpleDashboard初期化');
+        console.log('📊 LaminatorDashboard初期化');
         this.workStarted = false;
         this.jobs = [];
+        this.filmRolls = [];
+        this.currentFilmRoll = null;
+        this.filmSessions = [];
         this.settings = {
             workStart: '08:30',
             workEnd: '17:00',
@@ -15,9 +18,19 @@ class SimpleDashboard {
             cleanupTime: 15,
             diffFilmChange: 15
         };
+        
+        // ペーパーサイズ定義 (mm)
+        this.paperSizes = {
+            A4: { width: 210, height: 297 },
+            A3: { width: 297, height: 420 },
+            B4: { width: 257, height: 364 },
+            B5: { width: 182, height: 257 }
+        };
+        
         this.loadSettings();
         this.setupEventListeners();
         this.startTimeUpdater();
+        this.initializeFilmRolls();
     }
 
     setupEventListeners() {
@@ -89,6 +102,12 @@ class SimpleDashboard {
         if (targetTimeElement) {
             targetTimeElement.onclick = () => this.editTargetTime();
         }
+
+        // ジョブサイズ変更時のカスタムサイズ表示制御
+        const jobSizeSelect = document.getElementById('jobSize');
+        if (jobSizeSelect) {
+            jobSizeSelect.onchange = () => this.toggleCustomSize();
+        }
     }
 
     startWork() {
@@ -153,6 +172,205 @@ class SimpleDashboard {
         this.updateJobList();
     }
 
+    // ★ ラミネート作業専用機能群 ★
+
+    initializeFilmRolls() {
+        console.log('🎞️ フィルムロール初期化');
+        if (this.filmRolls.length === 0) {
+            // デフォルトフィルムロール追加
+            this.filmRolls = [
+                {
+                    id: 'roll1',
+                    name: 'A4グロスフィルム',
+                    type: 'gloss',
+                    maxLength: 100, // メートル
+                    remainingLength: 100,
+                    width: 305, // mm (A4+余白)
+                    isActive: true
+                }
+            ];
+            this.currentFilmRoll = this.filmRolls[0];
+        }
+        this.updateFilmRollSelect();
+    }
+
+    updateFilmRollSelect() {
+        const select = document.getElementById('currentFilmRoll');
+        if (!select) return;
+
+        select.innerHTML = '<option value="">フィルムロールを選択</option>';
+        this.filmRolls.forEach(roll => {
+            const option = document.createElement('option');
+            option.value = roll.id;
+            option.textContent = `${roll.name} (残り: ${roll.remainingLength}m)`;
+            if (this.currentFilmRoll && this.currentFilmRoll.id === roll.id) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+    }
+
+    selectFilmRoll() {
+        const select = document.getElementById('currentFilmRoll');
+        const selectedId = select.value;
+        
+        if (selectedId) {
+            this.currentFilmRoll = this.filmRolls.find(r => r.id === selectedId);
+            this.updateFilmInfo();
+        } else {
+            this.currentFilmRoll = null;
+            this.hideFilmInfo();
+        }
+    }
+
+    updateFilmInfo() {
+        const filmInfo = document.getElementById('filmInfo');
+        const remaining = document.getElementById('filmRemaining');
+        const filmType = document.getElementById('filmType');
+        
+        if (this.currentFilmRoll && filmInfo) {
+            remaining.textContent = `残り: ${this.currentFilmRoll.remainingLength}m`;
+            filmType.textContent = `タイプ: ${this.currentFilmRoll.type}`;
+            filmInfo.style.display = 'block';
+        }
+    }
+
+    hideFilmInfo() {
+        const filmInfo = document.getElementById('filmInfo');
+        if (filmInfo) {
+            filmInfo.style.display = 'none';
+        }
+    }
+
+    addNewFilmRoll() {
+        const name = prompt('フィルムロール名を入力してください:', 'A4グロスフィルム');
+        if (!name) return;
+
+        const length = prompt('フィルム長さ（メートル）を入力してください:', '100');
+        if (!length || isNaN(length)) return;
+
+        const width = prompt('フィルム幅（mm）を入力してください:', '305');
+        if (!width || isNaN(width)) return;
+
+        const newRoll = {
+            id: 'roll' + Date.now(),
+            name: name,
+            type: 'custom',
+            maxLength: parseFloat(length),
+            remainingLength: parseFloat(length),
+            width: parseFloat(width),
+            isActive: true
+        };
+
+        this.filmRolls.push(newRoll);
+        this.currentFilmRoll = newRoll;
+        this.updateFilmRollSelect();
+        this.updateFilmInfo();
+        this.saveData();
+        this.showToast('新しいフィルムロールを追加しました', 'success');
+    }
+
+    toggleCustomSize() {
+        const jobSize = document.getElementById('jobSize').value;
+        const customGroup = document.getElementById('customSizeGroup');
+        
+        if (customGroup) {
+            customGroup.style.display = jobSize === 'custom' ? 'block' : 'none';
+        }
+    }
+
+    addJob() {
+        console.log('📋 ラミネートジョブ追加処理');
+        
+        // 入力値取得
+        const jobName = document.getElementById('jobName').value.trim();
+        const jobSheets = parseInt(document.getElementById('jobSheets').value);
+        const jobSize = document.getElementById('jobSize').value;
+        const timePerSheet = parseInt(document.getElementById('timePerSheet').value);
+        const priority = document.getElementById('jobPriority').value;
+
+        // バリデーション
+        if (!jobName) {
+            this.showToast('ジョブ名を入力してください', 'error');
+            return;
+        }
+        if (!jobSheets || jobSheets < 1) {
+            this.showToast('有効な枚数を入力してください', 'error');
+            return;
+        }
+        if (!this.currentFilmRoll) {
+            this.showToast('フィルムロールを選択してください', 'error');
+            return;
+        }
+
+        // サイズ計算
+        let paperDimensions;
+        if (jobSize === 'custom') {
+            const width = parseInt(document.getElementById('customWidth').value);
+            const height = parseInt(document.getElementById('customHeight').value);
+            if (!width || !height) {
+                this.showToast('カスタムサイズを正しく入力してください', 'error');
+                return;
+            }
+            paperDimensions = { width, height };
+        } else {
+            paperDimensions = this.paperSizes[jobSize];
+        }
+
+        // フィルム消費量計算（長い辺+余白）
+        const maxDimension = Math.max(paperDimensions.width, paperDimensions.height);
+        const filmUsagePerSheet = (maxDimension + 10) / 1000; // メートルに変換+余白
+        const totalFilmUsage = filmUsagePerSheet * jobSheets;
+
+        // フィルム残量チェック
+        if (totalFilmUsage > this.currentFilmRoll.remainingLength) {
+            this.showToast(`フィルムが不足しています（必要: ${totalFilmUsage.toFixed(2)}m, 残り: ${this.currentFilmRoll.remainingLength}m）`, 'error');
+            return;
+        }
+
+        // ジョブオブジェクト作成
+        const job = {
+            id: Date.now(),
+            name: jobName,
+            sheets: jobSheets,
+            size: jobSize,
+            dimensions: paperDimensions,
+            timePerSheet: timePerSheet,
+            totalTime: Math.ceil(timePerSheet * jobSheets / 60), // 分に変換
+            filmUsage: totalFilmUsage,
+            priority: priority,
+            completed: false,
+            filmRollId: this.currentFilmRoll.id,
+            createdAt: new Date().toISOString(),
+            type: 'laminate' // ラミネートジョブとして識別
+        };
+
+        // フィルム消費量を引く
+        this.currentFilmRoll.remainingLength -= totalFilmUsage;
+        this.currentFilmRoll.remainingLength = Math.max(0, this.currentFilmRoll.remainingLength);
+
+        this.jobs.push(job);
+        this.clearJobForm();
+        this.updateJobList();
+        this.updateFilmRollSelect();
+        this.updateFilmInfo();
+        this.calculateFinishTime();
+        this.saveData();
+
+        this.showToast(`ジョブ「${jobName}」を追加しました（${totalFilmUsage.toFixed(2)}m使用）`, 'success');
+    }
+
+    clearJobForm() {
+        document.getElementById('jobName').value = '';
+        document.getElementById('jobSheets').value = '';
+        document.getElementById('jobSize').value = 'A4';
+        document.getElementById('timePerSheet').value = '30';
+        document.getElementById('jobPriority').value = 'normal';
+        document.getElementById('customWidth').value = '';
+        document.getElementById('customHeight').value = '';
+        this.toggleCustomSize();
+    }
+
     calculateFinishTime() {
         if (!this.workStarted) return;
         
@@ -205,22 +423,106 @@ class SimpleDashboard {
         const container = document.getElementById('jobListContainer');
         if (!container) return;
 
-        if (this.jobs.length === 0) {
+        // ラミネートジョブのみフィルタリング
+        const laminateJobs = this.jobs.filter(job => job.type === 'laminate');
+
+        if (laminateJobs.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    まだジョブが登録されていません<br>
-                    上記のボタンからジョブを追加してください
+                    まだラミネートジョブが登録されていません<br>
+                    上記のフォームからジョブを追加してください
                 </div>
             `;
         } else {
-            container.innerHTML = this.jobs.map(job => `
-                <div class="job-item">
+            container.innerHTML = laminateJobs.map(job => `
+                <div class="job-item ${job.completed ? 'completed' : ''} priority-${job.priority}">
+                    <div class="job-header">
+                        <div class="job-name">
+                            <span class="job-title">${job.name}</span>
+                            <span class="job-badge">${job.size}</span>
+                            ${job.priority === 'urgent' ? '<span class="priority-badge urgent">緊急</span>' : ''}
+                            ${job.priority === 'high' ? '<span class="priority-badge high">高</span>' : ''}
+                        </div>
+                        <div class="job-actions">
+                            <button class="btn-small ${job.completed ? 'btn-undo' : 'btn-complete'}" 
+                                    onclick="dashboard.toggleJobCompletion(${job.id})">
+                                ${job.completed ? '↶ 戻す' : '✓ 完了'}
+                            </button>
+                            <button class="btn-small btn-danger" onclick="dashboard.deleteJob(${job.id})">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                    <div class="job-details">
+                        <span class="job-stat">📄 ${job.sheets}枚</span>
+                        <span class="job-stat">⏱️ ${job.totalTime}分</span>
+                        <span class="job-stat">🎞️ ${job.filmUsage.toFixed(2)}m</span>
+                        <span class="job-stat">📐 ${job.dimensions.width}×${job.dimensions.height}mm</span>
+                    </div>
+                    ${job.completed ? `<div class="job-completed-info">完了時刻: ${new Date(job.completedAt).toLocaleTimeString()}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        // 他の時間追加ジョブも表示
+        const timeJobs = this.jobs.filter(job => job.type !== 'laminate');
+        if (timeJobs.length > 0) {
+            const timeJobsHtml = timeJobs.map(job => `
+                <div class="time-job-item">
                     <span class="job-type">${job.type}</span>
                     <span class="job-duration">${job.duration}分</span>
                     <span class="job-time">${job.timestamp}</span>
                 </div>
             `).join('');
+            
+            container.innerHTML += `
+                <div class="time-jobs-section">
+                    <h5>時間調整項目</h5>
+                    ${timeJobsHtml}
+                </div>
+            `;
         }
+    }
+
+    toggleJobCompletion(jobId) {
+        const job = this.jobs.find(j => j.id === jobId);
+        if (!job) return;
+
+        job.completed = !job.completed;
+        if (job.completed) {
+            job.completedAt = new Date().toISOString();
+        } else {
+            delete job.completedAt;
+        }
+
+        this.updateJobList();
+        this.calculateFinishTime();
+        this.saveData();
+        
+        const action = job.completed ? '完了' : '未完了に戻し';
+        this.showToast(`ジョブ「${job.name}」を${action}ました`, 'success');
+    }
+
+    deleteJob(jobId) {
+        if (!confirm('このジョブを削除しますか？')) return;
+
+        const job = this.jobs.find(j => j.id === jobId);
+        if (job && job.type === 'laminate') {
+            // フィルム使用量を戻す
+            const filmRoll = this.filmRolls.find(r => r.id === job.filmRollId);
+            if (filmRoll) {
+                filmRoll.remainingLength += job.filmUsage;
+                this.updateFilmRollSelect();
+                this.updateFilmInfo();
+            }
+        }
+
+        this.jobs = this.jobs.filter(j => j.id !== jobId);
+        this.updateJobList();
+        this.calculateFinishTime();
+        this.saveData();
+        
+        this.showToast('ジョブを削除しました', 'success');
     }
 
     showSettings() {
@@ -311,6 +613,14 @@ class SimpleDashboard {
                 this.jobs = data.jobs || [];
                 this.workStarted = data.workStarted || false;
                 
+                // フィルムロール情報の復元
+                if (data.filmRolls && data.filmRolls.length > 0) {
+                    this.filmRolls = data.filmRolls;
+                }
+                if (data.currentFilmRoll) {
+                    this.currentFilmRoll = data.currentFilmRoll;
+                }
+                
                 // 開始時刻を復元
                 if (data.startTime) {
                     const startTimeElement = document.getElementById('workStartTime');
@@ -319,7 +629,9 @@ class SimpleDashboard {
                     }
                 }
                 
-                // ジョブリストを表示
+                // UI更新
+                this.updateFilmRollSelect();
+                this.updateFilmInfo();
                 this.updateJobList();
                 
                 // 業務開始済みの場合は終了時刻を計算
@@ -343,6 +655,9 @@ class SimpleDashboard {
                 jobs: this.jobs,
                 workStarted: this.workStarted,
                 startTime: startTimeElement ? startTimeElement.textContent : '--:--',
+                filmRolls: this.filmRolls,
+                currentFilmRoll: this.currentFilmRoll,
+                filmSessions: this.filmSessions,
                 lastUpdate: new Date().toISOString()
             };
             localStorage.setItem('laminatorSettings', JSON.stringify(data));
@@ -415,18 +730,161 @@ class SimpleDashboard {
 
     showToast(message, type) {
         console.log(`📢 Toast: ${message} (${type})`);
-        alert(`Ver.6.9: ${message}`);
+        
+        // シンプルなトースト表示（改善版）
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: ${type === 'error' ? '#E74C3C' : type === 'success' ? '#27AE60' : '#3498DB'};
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            z-index: 10000;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            max-width: 400px;
+            text-align: center;
+        `;
+        toast.textContent = message;
+        
+        document.body.appendChild(toast);
+        
+        // 3秒後に自動削除
+        setTimeout(() => {
+            if (toast.parentNode) {
+                document.body.removeChild(toast);
+            }
+        }, 3000);
+    }
+
+    // バックアップ・復元機能
+    backupData() {
+        console.log('📤 データバックアップ開始');
+        try {
+            const backupData = {
+                version: '6.10',
+                timestamp: new Date().toISOString(),
+                settings: this.settings,
+                jobs: this.jobs,
+                filmRolls: this.filmRolls,
+                currentFilmRoll: this.currentFilmRoll,
+                filmSessions: this.filmSessions,
+                workStarted: this.workStarted
+            };
+
+            const dataStr = JSON.stringify(backupData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 10);
+            const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-');
+            const filename = `laminator-backup-${dateStr}-${timeStr}.json`;
+
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(dataBlob);
+            a.download = filename;
+            a.style.display = 'none';
+            
+            document.body.appendChild(a);
+            setTimeout(() => {
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(a.href);
+                }, 100);
+            }, 100);
+
+            this.showToast('バックアップファイルを保存しました', 'success');
+        } catch (error) {
+            console.error('バックアップエラー:', error);
+            this.showToast('バックアップに失敗しました', 'error');
+        }
+    }
+
+    triggerRestore() {
+        console.log('📥 復元ファイル選択');
+        const fileInput = document.getElementById('restore-file-input');
+        if (fileInput) {
+            fileInput.click();
+        }
+    }
+
+    restoreData(event) {
+        console.log('📥 データ復元開始');
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const backupData = JSON.parse(e.target.result);
+                
+                // データ検証
+                if (!backupData.version || !backupData.settings) {
+                    throw new Error('無効なバックアップファイルです');
+                }
+
+                // 復元確認
+                if (!confirm('現在のデータは失われます。復元を実行しますか？')) {
+                    return;
+                }
+
+                // データ復元
+                this.settings = backupData.settings || this.settings;
+                this.jobs = backupData.jobs || [];
+                this.filmRolls = backupData.filmRolls || [];
+                this.currentFilmRoll = backupData.currentFilmRoll || null;
+                this.filmSessions = backupData.filmSessions || [];
+                this.workStarted = backupData.workStarted || false;
+
+                // UI更新
+                this.updateFilmRollSelect();
+                this.updateFilmInfo();
+                this.updateJobList();
+                
+                // データ保存
+                this.saveData();
+                
+                this.showToast('データを復元しました', 'success');
+                
+                // ページリロード
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+
+            } catch (error) {
+                console.error('復元エラー:', error);
+                this.showToast('復元に失敗しました: ' + error.message, 'error');
+            }
+        };
+        
+        reader.readAsText(file);
+        
+        // ファイル入力をリセット
+        event.target.value = '';
+    }
+
+    resetSettings() {
+        if (!confirm('すべての設定とデータがリセットされます。実行しますか？')) {
+            return;
+        }
+        
+        localStorage.removeItem('laminatorSettings');
+        location.reload();
     }
 }
 
 // DOM読み込み完了時に初期化
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('✅ DOM読み込み完了 - SimpleDashboard初期化');
+    console.log('✅ DOM読み込み完了 - LaminatorDashboard初期化');
     
     // グローバルに設定（HTMLから呼び出し可能）
-    window.dashboard = new SimpleDashboard();
+    window.dashboard = new LaminatorDashboard();
     
-    console.log('🎯 SimpleDashboard準備完了');
+    console.log('🎯 LaminatorDashboard準備完了');
 });
 
 console.log('📝 app-minimal.js読み込み完了');
