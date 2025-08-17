@@ -1295,10 +1295,21 @@ class LaminatorDashboard {
 
         // 3. サマリー計算
         const totalCompletedJobs = completedJobs.length;
-        const totalSheets = completedJobs.reduce((sum, job) => sum + job.sheets, 0);
-        const totalUsedMeters = completedJobs.reduce((sum, job) => sum + (job.sheets * job.usageLength), 0);
-        // 【Ver.2.10修正】完了したジョブの productionTime を正確に合計
-        const totalProductionTime = completedJobs.reduce((sum, job) => sum + job.productionTime, 0);
+        const totalSheets = completedJobs.reduce((sum, job) => {
+            const sheets = job.sheets || 0;
+            return sum + (isNaN(sheets) ? 0 : sheets);
+        }, 0);
+        const totalUsedMeters = completedJobs.reduce((sum, job) => {
+            const sheets = job.sheets || 0;
+            const usage = job.usageLength || 0;
+            const totalUsage = sheets * usage;
+            return sum + (isNaN(totalUsage) ? 0 : totalUsage);
+        }, 0);
+        // 【Ver.2.17修正】NaN問題解決 - productionTime の安全な合計
+        const totalProductionTime = completedJobs.reduce((sum, job) => {
+            const prodTime = job.productionTime || job.processingTime || 0;
+            return sum + (isNaN(prodTime) ? 0 : prodTime);
+        }, 0);
         
         const reportContent = `
             <div class="report-summary">
@@ -1349,7 +1360,13 @@ class LaminatorDashboard {
                                 <span>${session.status === 'completed' ? '完了' : '進行中'}</span>
                             </div>
                             <div class="history-details">
-                                ${session.jobs.length}ジョブ / ${session.jobs.reduce((sum, job) => sum + job.usageLength, 0).toFixed(2)}m / ${session.jobs.reduce((sum, job) => sum + job.processingTime, 0).toFixed(1)}分
+                                ${session.jobs.length}ジョブ / ${session.jobs.reduce((sum, job) => {
+                                    const usage = job.usageLength || 0;
+                                    return sum + (isNaN(usage) ? 0 : usage);
+                                }, 0).toFixed(2)}m / ${session.jobs.reduce((sum, job) => {
+                                    const procTime = job.processingTime || job.productionTime || 0;
+                                    return sum + (isNaN(procTime) ? 0 : procTime);
+                                }, 0).toFixed(1)}分
                             </div>
                         </div>
                     `).join('')}
@@ -1357,7 +1374,29 @@ class LaminatorDashboard {
             </div>
         `;
         
-        // レポート内容と新機能ボタンは既にHTMLで配置済み
+        // レポート内容をモーダルに挿入（既存の開始時刻・目標時刻・ボタンは保持）
+        const reportContentElement = document.getElementById('reportContent');
+        if (reportContentElement) {
+            // 既存の動的レポート部分を削除（IDで識別）
+            const existingReport = reportContentElement.querySelector('.report-summary');
+            if (existingReport) {
+                existingReport.remove();
+            }
+            const existingHistory = reportContentElement.querySelector('.report-history');
+            if (existingHistory) {
+                existingHistory.remove();
+            }
+            
+            // ボタンの直前にレポート内容を挿入
+            const buttonsDiv = reportContentElement.querySelector('div[style*="margin-top: 20px"]');
+            if (buttonsDiv) {
+                buttonsDiv.insertAdjacentHTML('beforebegin', reportContent);
+            } else {
+                // フォールバック: ボタンが見つからない場合は末尾に追加
+                reportContentElement.insertAdjacentHTML('beforeend', reportContent);
+            }
+        }
+        
         document.getElementById('reportModal').classList.add('active');
     }
 
@@ -1386,7 +1425,10 @@ class LaminatorDashboard {
         }
 
         const allJobs = this.filmSessions.flatMap(session => session.jobs);
-        const totalProcessingTime = allJobs.reduce((total, job) => total + job.processingTime, 0);
+        const totalProcessingTime = allJobs.reduce((total, job) => {
+            const procTime = job.processingTime || job.productionTime || 0;
+            return total + (isNaN(procTime) ? 0 : procTime);
+        }, 0);
         const totalTime = totalProcessingTime + this.extraTime + this.timeSettings.cleanupTime;
         
         // 開始時刻から終了時刻を計算
@@ -1434,18 +1476,22 @@ class LaminatorDashboard {
         // フィルム残量表示要素がない場合は何もしない（エラー回避）
     }
 
-    // CSV エクスポート機能
+    // CSV エクスポート機能（NaN問題修正版）
     exportDataAsCsv() {
         const completedJobs = [];
         this.filmSessions.forEach(session => {
             session.jobs.forEach(job => {
                 if (job.completed) {
+                    const prodTime = job.productionTime || job.processingTime || 0;
+                    const usageLength = job.usageLength || 0;
+                    const sheets = job.sheets || 0;
+                    
                     completedJobs.push({
                         日時: new Date().toLocaleDateString('ja-JP'),
-                        ジョブ名: job.name,
-                        生産枚数: job.sheets,
-                        使用フィルム: `${(job.sheets * job.usageLength).toFixed(2)}m`,
-                        加工時間: `${job.productionTime.toFixed(1)}分`,
+                        ジョブ名: job.name || 'ジョブ',
+                        生産枚数: sheets,
+                        使用フィルム: `${(sheets * usageLength).toFixed(2)}m`,
+                        加工時間: `${(isNaN(prodTime) ? 0 : prodTime).toFixed(1)}分`,
                         フィルムセッション: session.name || `セッション${session.id}`
                     });
                 }
@@ -1460,7 +1506,7 @@ class LaminatorDashboard {
         // CSV作成
         const headers = Object.keys(completedJobs[0]);
         const csvContent = [
-            headers.join(','),
+            '\uFEFF' + headers.join(','), // BOMを追加してExcelで正しく表示
             ...completedJobs.map(job => headers.map(header => `"${job[header]}"`).join(','))
         ].join('\n');
 
@@ -1472,6 +1518,7 @@ class LaminatorDashboard {
         link.click();
         
         console.log('CSV エクスポート完了:', completedJobs.length + '件');
+        alert(`CSV エクスポート完了: ${completedJobs.length}件のジョブを保存しました`);
     }
 
     // 本日のジョブを消去
@@ -1946,6 +1993,12 @@ class LaminatorDashboard {
         // 計算実行
         const usageLength = (paperLength - overlapWidth) / 1000; // メートル変換
         const processingTime = sheets * usageLength / processSpeed; // 分
+        
+        // NaN安全性チェック
+        if (isNaN(usageLength) || isNaN(processingTime)) {
+            alert('計算エラーが発生しました。入力値を確認してください。');
+            return null;
+        }
         
         // 妥当性チェック
         if (usageLength <= 0) {
