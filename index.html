@@ -146,7 +146,15 @@
                     <h3>📊 本日の作業レポート</h3>
                     <button class="modal-close" onclick="dashboard.hideReport()">&times;</button>
                 </div>
-                <div class="modal-body" id="reportContent"></div>
+                <div class="modal-body" id="reportContent">
+                    <p><strong>開始時刻:</strong> <span id="reportStartTime">--:--</span></p>
+                    <p><strong>目標時刻:</strong> <span id="reportTargetTime">--:--</span></p>
+                    
+                    <div style="margin-top: 20px;">
+                        <button id="exportCsvBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">📋 業務記録をCSV保存</button>
+                        <button id="clearJobsBtn" class="btn btn-danger" style="width: 100%;">🗑️ 本日のジョブを消去</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -166,7 +174,7 @@
     </div>
     
     <footer style="text-align: center; padding: 10px; border-top: 1px solid #ccc; font-size: 12px; color: #888;">
-        Ver. 2.16
+        Ver. 2.17 - 機能完成版
     </footer>
 
     <script src="script.js"></script>

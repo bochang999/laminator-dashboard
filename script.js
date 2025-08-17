@@ -153,6 +153,7 @@ class LaminatorDashboard {
     init() {
         this.loadData();
         this.setupEventListeners();
+        this.autoStartWork();
         this.updateCurrentTime();
         this.updateTimeDisplay();
         this.updateFinishTime();
@@ -180,6 +181,13 @@ class LaminatorDashboard {
                 }
             });
         });
+
+        // 新機能のボタンにイベントリスナーを設定
+        const exportCsvBtn = document.getElementById('exportCsvBtn');
+        if (exportCsvBtn) exportCsvBtn.addEventListener('click', () => this.exportDataAsCsv());
+        
+        const clearJobsBtn = document.getElementById('clearJobsBtn');
+        if (clearJobsBtn) clearJobsBtn.addEventListener('click', () => this.clearTodaysJobs());
     }
 
     switchInputMode(mode) {
@@ -192,6 +200,20 @@ class LaminatorDashboard {
         } else {
             directMode.classList.remove('active');
             partsMode.classList.add('active');
+        }
+    }
+
+    // 自動業務開始
+    autoStartWork() {
+        if (!this.workStarted) {
+            const now = new Date();
+            const startTime = new Date();
+            startTime.setHours(8, 30, 0, 0); // 8:30に設定
+            
+            this.workStartTime = startTime;
+            this.workStarted = true;
+            this.saveData();
+            console.log("業務を8:30に自動開始しました。");
         }
     }
 
@@ -1240,7 +1262,16 @@ class LaminatorDashboard {
 
     // レポート表示
     showReport() {
-        // ===== Ver.2.9: XMLドキュメント仕様による計算ロジック完全置換 =====
+        // ===== Ver.2.17: レポート機能強化 =====
+        
+        // 開始・目標時刻をレポートに表示
+        if (this.workStartTime) {
+            document.getElementById('reportStartTime').textContent = this.workStartTime.toLocaleTimeString();
+        }
+        const targetTime = new Date();
+        const [hours, minutes] = this.targetEndTime.split(':');
+        targetTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        document.getElementById('reportTargetTime').textContent = targetTime.toLocaleTimeString();
         
         // 1. 完了済みジョブの抽出
         const completedJobs = [];
@@ -1326,7 +1357,7 @@ class LaminatorDashboard {
             </div>
         `;
         
-        document.getElementById('reportContent').innerHTML = reportContent;
+        // レポート内容と新機能ボタンは既にHTMLで配置済み
         document.getElementById('reportModal').classList.add('active');
     }
 
@@ -1401,6 +1432,59 @@ class LaminatorDashboard {
             filmRemainingElement.textContent = filmRemaining.toFixed(1);
         }
         // フィルム残量表示要素がない場合は何もしない（エラー回避）
+    }
+
+    // CSV エクスポート機能
+    exportDataAsCsv() {
+        const completedJobs = [];
+        this.filmSessions.forEach(session => {
+            session.jobs.forEach(job => {
+                if (job.completed) {
+                    completedJobs.push({
+                        日時: new Date().toLocaleDateString('ja-JP'),
+                        ジョブ名: job.name,
+                        生産枚数: job.sheets,
+                        使用フィルム: `${(job.sheets * job.usageLength).toFixed(2)}m`,
+                        加工時間: `${job.productionTime.toFixed(1)}分`,
+                        フィルムセッション: session.name || `セッション${session.id}`
+                    });
+                }
+            });
+        });
+
+        if (completedJobs.length === 0) {
+            alert('エクスポートする完了済みジョブがありません。');
+            return;
+        }
+
+        // CSV作成
+        const headers = Object.keys(completedJobs[0]);
+        const csvContent = [
+            headers.join(','),
+            ...completedJobs.map(job => headers.map(header => `"${job[header]}"`).join(','))
+        ].join('\n');
+
+        // ダウンロード
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `laminator_report_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        
+        console.log('CSV エクスポート完了:', completedJobs.length + '件');
+    }
+
+    // 本日のジョブを消去
+    clearTodaysJobs() {
+        if (confirm('本日の全ジョブを消去しますか？この操作は元に戻せません。')) {
+            this.filmSessions = [];
+            this.currentFilmSession = null;
+            this.saveData();
+            this.renderJobList();
+            this.updateFinishTime();
+            console.log('本日のジョブを消去しました。');
+            alert('本日のジョブを消去しました。');
+        }
     }
 
     // 入力フィールドクリア
