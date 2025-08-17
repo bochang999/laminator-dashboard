@@ -243,23 +243,65 @@ class LaminatorDashboard {
     }
 
     addNewFilmRoll() {
-        const name = prompt('フィルムロール名を入力してください:', 'A4グロスフィルム');
+        // フィルム種類テンプレートの選択
+        const templates = {
+            'A4グロス': { name: 'A4グロスフィルム', length: 100, width: 305, type: 'gloss' },
+            'A3グロス': { name: 'A3グロスフィルム', length: 100, width: 450, type: 'gloss' },
+            'A4マット': { name: 'A4マットフィルム', length: 100, width: 305, type: 'matt' },
+            'A3マット': { name: 'A3マットフィルム', length: 100, width: 450, type: 'matt' },
+            'カスタム': { name: 'カスタムフィルム', length: 100, width: 305, type: 'custom' }
+        };
+        
+        // テンプレート選択プロンプト
+        const templateChoice = prompt(
+            'フィルムテンプレートを選択してください:\n' +
+            '1: A4グロス (305mm幅)\n' +
+            '2: A3グロス (450mm幅)\n' +
+            '3: A4マット (305mm幅)\n' +
+            '4: A3マット (450mm幅)\n' +
+            '5: カスタム\n' +
+            '番号を入力してください (1-5):',
+            '1'
+        );
+        
+        if (!templateChoice) return;
+        
+        let template;
+        switch(templateChoice) {
+            case '1': template = templates['A4グロス']; break;
+            case '2': template = templates['A3グロス']; break;
+            case '3': template = templates['A4マット']; break;
+            case '4': template = templates['A3マット']; break;
+            case '5': template = templates['カスタム']; break;
+            default:
+                this.showToast('無効な選択です', 'error');
+                return;
+        }
+        
+        const name = prompt('フィルムロール名を入力してください:', template.name);
         if (!name) return;
 
-        const length = prompt('フィルム長さ（メートル）を入力してください:', '100');
-        if (!length || isNaN(length)) return;
+        const length = prompt('フィルム長さ（メートル）を入力してください:', template.length.toString());
+        if (!length || isNaN(length)) {
+            this.showToast('有効な数値を入力してください', 'error');
+            return;
+        }
 
-        const width = prompt('フィルム幅（mm）を入力してください:', '305');
-        if (!width || isNaN(width)) return;
+        const width = prompt('フィルム幅（mm）を入力してください:', template.width.toString());
+        if (!width || isNaN(width)) {
+            this.showToast('有効な数値を入力してください', 'error');
+            return;
+        }
 
         const newRoll = {
             id: 'roll' + Date.now(),
             name: name,
-            type: 'custom',
+            type: template.type,
             maxLength: parseFloat(length),
             remainingLength: parseFloat(length),
             width: parseFloat(width),
-            isActive: true
+            isActive: true,
+            createdAt: new Date().toISOString()
         };
 
         this.filmRolls.push(newRoll);
@@ -267,7 +309,7 @@ class LaminatorDashboard {
         this.updateFilmRollSelect();
         this.updateFilmInfo();
         this.saveData();
-        this.showToast('新しいフィルムロールを追加しました', 'success');
+        this.showToast(`新しいフィルムロール「${name}」を追加しました`, 'success');
     }
 
     toggleCustomSize() {
@@ -369,6 +411,60 @@ class LaminatorDashboard {
         document.getElementById('customWidth').value = '';
         document.getElementById('customHeight').value = '';
         this.toggleCustomSize();
+    }
+
+    // ジョブテンプレート機能
+    loadJobTemplate() {
+        const templates = {
+            'チラシA4': { name: 'A4チラシ印刷', size: 'A4', timePerSheet: 30, priority: 'normal' },
+            'ポスターA3': { name: 'A3ポスター', size: 'A3', timePerSheet: 45, priority: 'normal' },
+            'メニューA4': { name: 'メニュー表', size: 'A4', timePerSheet: 35, priority: 'normal' },
+            '名刺': { name: '名刺', size: 'custom', width: 91, height: 55, timePerSheet: 20, priority: 'normal' },
+            '証明書A4': { name: '証明書', size: 'A4', timePerSheet: 40, priority: 'high' },
+            '緊急資料': { name: '緊急資料', size: 'A4', timePerSheet: 25, priority: 'urgent' }
+        };
+
+        const templateChoice = prompt(
+            'ジョブテンプレートを選択してください:\n' +
+            '1: チラシA4 (30秒/枚)\n' +
+            '2: ポスターA3 (45秒/枚)\n' +
+            '3: メニューA4 (35秒/枚)\n' +
+            '4: 名刺 (20秒/枚)\n' +
+            '5: 証明書A4 (40秒/枚, 高優先度)\n' +
+            '6: 緊急資料 (25秒/枚, 緊急)\n' +
+            '番号を入力してください (1-6):',
+            '1'
+        );
+
+        if (!templateChoice) return;
+
+        let template;
+        switch(templateChoice) {
+            case '1': template = templates['チラシA4']; break;
+            case '2': template = templates['ポスターA3']; break;
+            case '3': template = templates['メニューA4']; break;
+            case '4': template = templates['名刺']; break;
+            case '5': template = templates['証明書A4']; break;
+            case '6': template = templates['緊急資料']; break;
+            default:
+                this.showToast('無効な選択です', 'error');
+                return;
+        }
+
+        // フォームに値を設定
+        document.getElementById('jobName').value = template.name;
+        document.getElementById('jobSize').value = template.size;
+        document.getElementById('timePerSheet').value = template.timePerSheet;
+        document.getElementById('jobPriority').value = template.priority;
+
+        // カスタムサイズの場合
+        if (template.size === 'custom' && template.width && template.height) {
+            this.toggleCustomSize();
+            document.getElementById('customWidth').value = template.width;
+            document.getElementById('customHeight').value = template.height;
+        }
+
+        this.showToast(`テンプレート「${template.name}」を読み込みました`, 'success');
     }
 
     calculateFinishTime() {
@@ -674,9 +770,20 @@ class LaminatorDashboard {
         
         if (newTime && this.isValidTime(newTime)) {
             document.getElementById('workStartTime').textContent = newTime;
+            // 🔧 修正: workStarted を確実に true に設定
+            this.workStarted = true;
+            
+            // ステータス表示を更新
+            const finishStatusElement = document.getElementById('finishStatus');
+            if (finishStatusElement && finishStatusElement.textContent === '業務開始前') {
+                finishStatusElement.textContent = '業務進行中';
+            }
+            
             this.calculateFinishTime();
             this.saveData();
-            this.showToast('開始時刻を更新しました', 'success');
+            this.showToast(`開始時刻を${newTime}に設定しました（業務開始済み）`, 'success');
+        } else if (newTime && !this.isValidTime(newTime)) {
+            this.showToast('正しい時刻形式で入力してください (例: 08:30)', 'error');
         }
     }
 

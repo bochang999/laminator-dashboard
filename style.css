@@ -35,6 +35,27 @@
 .film-add-film-btn:hover {
     background-color: #2E86C1;
 }
+
+/* Ver.6.10 追加: ジョブテンプレートボタンスタイル */
+.btn-secondary {
+    background-color: var(--dark-gray);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+    background-color: #495057;
+    transform: translateY(-1px);
+}
+
+.btn-secondary:active {
+    transform: translateY(0);
+}
 :root {
     --primary-color: #2C3E50;
     --secondary-color: #34495E;

@@ -136,9 +136,14 @@
                             </div>
                         </div>
 
-                        <button class="btn btn-primary" onclick="dashboard.addJob()" style="width: 100%; margin-top: 10px;">
-                            📋 ジョブを追加
-                        </button>
+                        <div style="display: flex; gap: 10px; margin-top: 10px;">
+                            <button class="btn btn-secondary" onclick="dashboard.loadJobTemplate()" style="flex: 1;">
+                                📝 テンプレート
+                            </button>
+                            <button class="btn btn-primary" onclick="dashboard.addJob()" style="flex: 2;">
+                                📋 ジョブを追加
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -255,7 +260,7 @@
     </div>
     
     <footer style="text-align: center; padding: 10px; border-top: 1px solid #ccc; font-size: 12px; color: #888;">
-        Ver. 6.9 - ⚡ Capacitor公式署名システム版
+        Ver. 6.10.1 - 🎯 完全機能復旧＋ユーザー問題解決版
     </footer>
 
     <!-- 段階的復旧：最小限のアプリ機能 -->
