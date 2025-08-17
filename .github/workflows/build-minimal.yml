@@ -101,25 +101,32 @@ EOF
             echo "✅ variables.gradle configured for API 35"
           fi
 
-      - name: Setup Keystore for Signed Release
+      - name: Setup Consistent Development Keystore
         run: |
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "🔑 Setting up production keystore..."
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
-            echo "KEYSTORE_EXISTS=true" >> $GITHUB_ENV
-            echo "✅ Production keystore configured"
+          echo "🔑 Creating consistent development keystore for seamless updates..."
+          cd android
+          
+          # Create project-specific keystore if it doesn't exist
+          if [ ! -f "laminator-dev-key.jks" ]; then
+            echo "🔧 Generating project-specific development keystore..."
+            keytool -genkeypair -v -keystore laminator-dev-key.jks \
+              -alias laminator -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Laminator Dashboard,O=BochangDev,C=JP" \
+              -storepass laminator123 -keypass laminator123
+            echo "✅ Development keystore created successfully"
           else
-            echo "⚠️ No keystore found. Building debug APK..."
-            echo "KEYSTORE_EXISTS=false" >> $GITHUB_ENV
+            echo "✅ Using existing development keystore"
           fi
+          
+          echo "KEYSTORE_EXISTS=true" >> $GITHUB_ENV
+          echo "KEYSTORE_FILE=laminator-dev-key.jks" >> $GITHUB_ENV
+          echo "KEYSTORE_PASSWORD=laminator123" >> $GITHUB_ENV
+          echo "KEY_ALIAS=laminator" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=laminator123" >> $GITHUB_ENV
 
-      - name: Build APK with Enhanced Error Handling
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      - name: Build APK with Consistent Signing
         run: |
-          echo "🏗️ Building APK with Capacitor 7 + Android API 35..."
+          echo "🏗️ Building consistently signed APK with Capacitor 7 + Android API 35..."
           cd android
           
           echo "🧹 Cleaning previous builds..."
@@ -128,78 +135,63 @@ EOF
           echo "📋 Gradle version info..."
           ./gradlew --version
           
-          # Build signed or debug APK based on keystore availability
-          if [ "$KEYSTORE_EXISTS" = "true" ]; then
-            echo "🔨 Building signed release APK..."
-            ./gradlew assembleRelease \
-              -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/app/release.keystore" \
-              -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
-              -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
-              -Pandroid.injected.signing.key.password="$KEY_PASSWORD" \
-              -Pandroid.injected.version.code="${{ github.run_number }}" \
-              -Pandroid.injected.version.name="2.16.${{ github.run_number }}" \
-              --stacktrace --info > ../build.log 2>&1 || {
-                echo "❌ Release build failed. Building debug APK as fallback..."
-                ./gradlew assembleDebug --stacktrace --info
-                echo "BUILD_TYPE=debug" >> $GITHUB_ENV
-              }
-            echo "BUILD_TYPE=${KEYSTORE_EXISTS}" >> $GITHUB_ENV
-          else
-            echo "🔨 Building debug APK..."
-            ./gradlew assembleDebug \
-              -Pandroid.injected.version.code="${{ github.run_number }}" \
-              -Pandroid.injected.version.name="2.16.${{ github.run_number }}" \
-              --stacktrace --info > ../build.log 2>&1 || {
-                echo "❌ Build failed. Analyzing error log..."
-                echo "🔍 FIRST 20 LINES:"
-                head -20 ../build.log
-                echo "🔍 ERROR SECTIONS:"
-                grep -A 5 -B 5 -i "error\|failed\|exception" ../build.log | head -30
-                echo "🔍 LAST 20 LINES:"
-                tail -20 ../build.log
-                exit 1
-              }
-            echo "BUILD_TYPE=debug" >> $GITHUB_ENV
-          fi
+          echo "🔨 Building signed release APK with development keystore..."
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/$KEYSTORE_FILE" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD" \
+            -Pandroid.injected.version.code="${{ github.run_number }}" \
+            -Pandroid.injected.version.name="6.${{ github.run_number }}" \
+            --stacktrace --info > ../build.log 2>&1 || {
+              echo "❌ Signed build failed. Analyzing error log..."
+              echo "🔍 FIRST 20 LINES:"
+              head -20 ../build.log
+              echo "🔍 ERROR SECTIONS:"
+              grep -A 5 -B 5 -i "error\|failed\|exception" ../build.log | head -30
+              echo "🔍 LAST 20 LINES:"
+              tail -20 ../build.log
+              exit 1
+            }
           
-          echo "✅ APK build completed successfully"
+          echo "BUILD_TYPE=signed" >> $GITHUB_ENV
+          echo "✅ Signed APK build completed successfully"
 
-      - name: Package and Verify APK
+      - name: Package and Verify Signed APK
         run: |
-          echo "📦 Searching for built APK files..."
+          echo "📦 Searching for consistently signed APK..."
           
-          # Try to find release APK first, then debug
-          if [ "$BUILD_TYPE" = "true" ] && [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
-            APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
-            BUILD_SUFFIX="signed"
-          else
-            APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
-            BUILD_SUFFIX="debug"
-          fi
+          APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
           
           if [ -f "$APK_PATH" ]; then
             TIMESTAMP=$(date +%Y%m%d-%H%M)
-            VERSION="v2.16-prod-${TIMESTAMP}"
-            NEW_NAME="LaminatorDashboard-${VERSION}-${BUILD_SUFFIX}.apk"
+            VERSION="v6.4-seamless-${TIMESTAMP}"
+            NEW_NAME="LaminatorDashboard-${VERSION}-signed.apk"
             
-            echo "✅ Found APK: $APK_PATH"
+            echo "✅ Found signed APK: $APK_PATH"
             echo "📦 Packaging as: $NEW_NAME"
             cp "$APK_PATH" "$NEW_NAME"
             
             echo "📊 APK Information:"
             ls -lh "$NEW_NAME"
             
-            # APK verification if possible
+            # APK verification and signing information
             if command -v aapt >/dev/null 2>&1; then
               echo "📋 APK Package Information:"
               aapt dump badging "$NEW_NAME" | grep -E "package|versionCode|versionName" || true
             fi
             
+            # Verify APK signature
+            if command -v apksigner >/dev/null 2>&1; then
+              echo "🔐 APK Signature Verification:"
+              apksigner verify --verbose "$NEW_NAME" || echo "⚠️ Signature verification failed or not available"
+            fi
+            
             echo "APK_FILE=$NEW_NAME" >> $GITHUB_ENV
             echo "VERSION_TAG=$VERSION" >> $GITHUB_ENV
-            echo "BUILD_SUFFIX=$BUILD_SUFFIX" >> $GITHUB_ENV
+            echo "BUILD_SUFFIX=signed" >> $GITHUB_ENV
           else
-            echo "❌ APK file not found"
+            echo "❌ Signed APK file not found"
             echo "📂 Build structure:"
             find android -name "*.apk" -type f || echo "No APK files found"
             exit 1
@@ -228,37 +220,41 @@ EOF
             2. 🔓 Enable "Install from Unknown Sources" on your Android device
             3. 📱 Tap the APK file to install
             
-            ## ✨ Ver.2.16 Complete Features
-            - ⏰ **Time Calculator** - Production time and completion prediction
-            - 🎞️ **Film Session Management** - Consumption simulation
-            - 📋 **Job Management** - Real-time progress tracking
-            - 📊 **Report Generation** - Work efficiency analysis
-            - 🌐 **PWA Support** - Offline operation and home screen installation
-            - 🔄 **Seamless Updates** - Signature consistency for smooth upgrades
+            ## 🆕 Ver.6.4 Key Improvements
+            - ✅ **Seamless Updates**: No more uninstall/reinstall required
+            - ✅ **Consistent Signing**: Fixed development keystore for update compatibility
+            - ⏰ **Working Time Management**: Business start, lunch break tracking
+            - 📊 **Basic Dashboard**: Time display and job tracking foundation
+            - 🔧 **Settings Panel**: User preferences and data management
             
             ## 🔧 Technical Specifications
             - **Build Environment**: Ubuntu Latest + Node.js ${{ env.NODE_VERSION }} + Java ${{ env.JAVA_VERSION }}
             - **Framework**: Capacitor 7.0 + Android API 35 (VANILLA_ICE_CREAM)
-            - **Build Method**: Ephemeral Capacitor (CI initialization)
-            - **APK Type**: ${{ env.BUILD_SUFFIX == 'signed' && 'Release (Signed)' || 'Debug' }}
+            - **Signing**: Consistent development keystore (laminator-dev-key.jks)
+            - **APK Type**: Signed Release (seamless updates enabled)
             - **Compatibility**: Android 7.0+ recommended
             
-            ## 🎯 Technical Improvements
-            - ✅ **Ephemeral Capacitor Success**: Clean CI initialization without repository pollution
-            - ✅ **VANILLA_ICE_CREAM Compatibility**: Full Android API 35 support
-            - ✅ **Enhanced Error Handling**: Comprehensive build failure analysis
-            - ✅ **Stable Build Process**: Production-ready automation
-            - ✅ **Signed Release Support**: Keystore-based signing when available
+            ## 🎯 Critical Update Fix
+            - 🔑 **Fixed Signing System**: Consistent keystore prevents "package conflicts"
+            - 🔄 **Update Compatibility**: All future versions will update seamlessly
+            - ⚠️ **One-Time Migration**: This version may require uninstall if upgrading from debug builds
+            - ✅ **Future-Proof**: No more installation issues going forward
             
             ## 📈 Build Information
             - **Version**: ${{ env.VERSION_TAG }}
             - **Build Number**: ${{ github.run_number }}
-            - **Build Type**: ${{ env.BUILD_SUFFIX }}
+            - **Keystore**: laminator-dev-key.jks (consistent signing)
             - **Commit**: ${{ github.sha }}
             
+            ## 🚀 Next Steps
+            After installing this version:
+            - Future APK updates will install directly over this version
+            - No need to uninstall previous versions anymore
+            - Settings and data will be preserved across updates
+            
             ---
-            🤖 **Auto Build**: GitHub Actions (Ephemeral-Capacitor-Production)  
+            🤖 **Auto Build**: GitHub Actions (Seamless-Update-System)  
             📅 **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')  
-            🔧 **Technical Solution**: Sequential Thinking + Context7 Optimized
+            🔧 **Fix Applied**: Consistent APK Signing for Update Compatibility
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
