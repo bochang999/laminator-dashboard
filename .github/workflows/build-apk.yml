@@ -178,9 +178,9 @@ jobs:
 
       - name: Set Version Information
         run: |
-          echo "📋 Setting version information for Ver.6.6 signing fix..."
+          echo "📋 Setting version information for Ver.6.7 seamless update test..."
           VERSION_MAJOR="6"
-          VERSION_MINOR="6"
+          VERSION_MINOR="7"
           VERSION_PATCH="${{ github.run_number }}"
           VERSION_TAG="$VERSION_MAJOR.$VERSION_MINOR.$VERSION_PATCH"
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
@@ -312,7 +312,7 @@ jobs:
             3. 📱 Tap the APK file to install
             4. 🔄 **Seamless Updates**: Future versions will update without reinstalling
             
-            ## ✨ Ver.6.6 Signing Fix Features
+            ## ✅ Ver.6.7 Seamless Update Test
             - ⏰ **Time Calculator** - Production time and completion prediction
             - 🎞️ **Film Session Management** - Consumption simulation  
             - 📋 **Job Management** - Real-time progress tracking
@@ -339,7 +339,7 @@ jobs:
             - **Version**: ${{ env.VERSION_TAG }}
             - **Build Number**: ${{ github.run_number }}
             - **Build Type**: ${{ env.BUILD_TYPE }}
-            - **Signing Status**: 🔧 Consistent Development Keystore (Ver.6.6 Fix)
+            - **Signing Status**: ✅ Consistent Development Keystore (Same as Ver.6.6)
             - **Commit**: ${{ github.sha }}
             
             ---
