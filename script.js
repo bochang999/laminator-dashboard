@@ -1,7 +1,8 @@
-// ===== Capacitor プラグイン設定 Ver.4.0 =====
-// MCPサーバー調査結果に基づく正式実装パターン
+// ===== Capacitor プラグイン設定 Ver.5.0 =====
+// MCPサーバー調査結果に基づく正式実装パターン + IndexedDBフォールバック
 let CapacitorPreferences, CapacitorFilesystem;
 let isCapacitorEnvironment = false;
+let indexedDBSupported = false;
 
 // Capacitor環境判定とプラグイン初期化
 async function initializeCapacitor() {
@@ -75,7 +76,201 @@ async function testCapacitorPreferences() {
 // DOM読み込み完了時にCapacitor初期化実行
 document.addEventListener('DOMContentLoaded', async () => {
     await initializeCapacitor();
+    
+    // Capacitor Preferencesの追加設定
+    if (isCapacitorEnvironment && CapacitorPreferences) {
+        await configureCapacitorPreferences();
+    }
+    
+    // IndexedDBフォールバック初期化
+    if (!isCapacitorEnvironment) {
+        await initializeIndexedDB();
+    }
 });
+
+// Capacitor Preferences詳細設定
+async function configureCapacitorPreferences() {
+    try {
+        console.log('🔧 Capacitor Preferences 詳細設定を開始...');
+        
+        // 公式推奨: カスタムグループ設定でネイティブストレージを使用
+        await CapacitorPreferences.configure({
+            group: 'NativeStorage' // cordova-plugin-nativestorage互換性
+        });
+        
+        console.log('✅ Capacitor Preferences カスタムグループ設定完了');
+        
+        // 設定後の動作テスト
+        await testCapacitorPreferencesAdvanced();
+        
+    } catch (error) {
+        console.warn('⚠️ Capacitor Preferences設定警告:', error);
+        // 設定エラーでも処理続行（フォールバック対応）
+    }
+}
+
+// 高度なCapacitor Preferencesテスト
+async function testCapacitorPreferencesAdvanced() {
+    if (!CapacitorPreferences) return;
+    
+    try {
+        const testKey = 'advanced_test_key';
+        const complexTestData = {
+            timestamp: Date.now(),
+            data: {
+                array: [1, 2, 3, 'test'],
+                object: { nested: 'value' },
+                unicode: '日本語テスト'
+            }
+        };
+        const testValue = JSON.stringify(complexTestData);
+        
+        console.log('🔄 高度なCapacitor Preferencesテスト開始...');
+        
+        // 1. 複雑なデータの書き込みテスト
+        await CapacitorPreferences.set({
+            key: testKey,
+            value: testValue
+        });
+        
+        // 2. 即座の読み込みテスト
+        const immediateResult = await CapacitorPreferences.get({ key: testKey });
+        
+        // 3. データ整合性テスト
+        if (immediateResult.value === testValue) {
+            const parsedData = JSON.parse(immediateResult.value);
+            if (parsedData.timestamp === complexTestData.timestamp) {
+                console.log('✅ 高度なCapacitor Preferencesテスト成功');
+                console.log('📊 テストデータサイズ:', testValue.length, 'バイト');
+            } else {
+                console.error('❌ データ内容の整合性エラー');
+                isCapacitorEnvironment = false;
+            }
+        } else {
+            console.error('❌ 高度なCapacitor Preferencesテスト失敗');
+            isCapacitorEnvironment = false;
+        }
+        
+        // 4. キー一覧テスト
+        const keysResult = await CapacitorPreferences.keys();
+        console.log('📋 現在のキー一覧:', keysResult.keys);
+        
+        // 5. クリーンアップ
+        await CapacitorPreferences.remove({ key: testKey });
+        
+    } catch (error) {
+        console.error('❌ 高度なCapacitor Preferencesテストエラー:', error);
+        isCapacitorEnvironment = false;
+    }
+}
+
+// ===== IndexedDB フォールバック システム =====
+
+// IndexedDB初期化とサポート確認
+async function initializeIndexedDB() {
+    try {
+        console.log('🔄 IndexedDBサポート確認...');
+        
+        if (!window.indexedDB) {
+            console.log('❌ IndexedDBはサポートされていません');
+            return false;
+        }
+        
+        // IndexedDBテスト実行
+        const testRequest = indexedDB.open('laminator_test', 1);
+        
+        return new Promise((resolve) => {
+            testRequest.onerror = () => {
+                console.log('❌ IndexedDBテスト失敗');
+                resolve(false);
+            };
+            
+            testRequest.onsuccess = (event) => {
+                const db = event.target.result;
+                db.close();
+                indexedDB.deleteDatabase('laminator_test');
+                console.log('✅ IndexedDBサポート確認完了');
+                indexedDBSupported = true;
+                resolve(true);
+            };
+            
+            testRequest.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                db.createObjectStore('test', { keyPath: 'id' });
+            };
+        });
+        
+    } catch (error) {
+        console.error('❌ IndexedDB初期化エラー:', error);
+        return false;
+    }
+}
+
+// IndexedDBでデータ保存
+async function saveToIndexedDB(key, value) {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('laminator_dashboard', 1);
+        
+        request.onerror = () => reject(request.error);
+        
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('data')) {
+                db.createObjectStore('data', { keyPath: 'key' });
+            }
+        };
+        
+        request.onsuccess = (event) => {
+            const db = event.target.result;
+            const transaction = db.transaction(['data'], 'readwrite');
+            const store = transaction.objectStore('data');
+            
+            const saveRequest = store.put({ key: key, value: value, timestamp: Date.now() });
+            
+            saveRequest.onsuccess = () => {
+                console.log('✅ IndexedDBに保存成功:', key);
+                resolve();
+            };
+            
+            saveRequest.onerror = () => reject(saveRequest.error);
+        };
+    });
+}
+
+// IndexedDBからデータ読み込み
+async function loadFromIndexedDB(key) {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('laminator_dashboard', 1);
+        
+        request.onerror = () => reject(request.error);
+        
+        request.onsuccess = (event) => {
+            const db = event.target.result;
+            
+            if (!db.objectStoreNames.contains('data')) {
+                resolve(null);
+                return;
+            }
+            
+            const transaction = db.transaction(['data'], 'readonly');
+            const store = transaction.objectStore('data');
+            const getRequest = store.get(key);
+            
+            getRequest.onsuccess = () => {
+                const result = getRequest.result;
+                if (result) {
+                    console.log('✅ IndexedDBから読み込み成功:', key);
+                    resolve(result.value);
+                } else {
+                    console.log('ℹ️ IndexedDB: キーが見つかりません:', key);
+                    resolve(null);
+                }
+            };
+            
+            getRequest.onerror = () => reject(getRequest.error);
+        };
+    });
+}
 
 // =====ここからログシステム Ver.2.4 =====
 // グローバルログ配列の初期化
@@ -1742,10 +1937,12 @@ class LaminatorDashboard {
         const dataString = JSON.stringify(data);
         const dataKey = 'laminator_dashboard_v3';
         
+        console.log('🔄 データ保存開始...複数方式で試行');
+        
         try {
+            // === 方式1: Capacitor Preferences API ===
             if (isCapacitorEnvironment && CapacitorPreferences) {
-                // APK環境: Capacitor Preferences API使用（公式実装パターン）
-                console.log('🔄 Capacitor Preferences APIでデータ保存を実行...');
+                console.log('🔄 方式1: Capacitor Preferences APIでデータ保存...');
                 
                 await CapacitorPreferences.set({
                     key: dataKey,
@@ -1755,31 +1952,56 @@ class LaminatorDashboard {
                 // 保存確認のための読み戻しテスト
                 const verification = await CapacitorPreferences.get({ key: dataKey });
                 if (verification.value === dataString) {
-                    console.log('✅ Capacitor Preferencesに正常保存完了');
+                    console.log('✅ 方式1成功: Capacitor Preferencesに正常保存完了');
                     console.log(`📊 保存データサイズ: ${Math.round(dataString.length / 1024 * 100) / 100}KB`);
+                    return; // 成功時は終了
                 } else {
-                    throw new Error('保存データの検証に失敗');
+                    throw new Error('Capacitor Preferences保存データの検証に失敗');
                 }
+            }
+            
+            // === 方式2: IndexedDB フォールバック ===
+            if (indexedDBSupported) {
+                console.log('🔄 方式2: IndexedDBでデータ保存...');
                 
+                await saveToIndexedDB(dataKey, dataString);
+                
+                // IndexedDB保存確認
+                const indexedDBVerification = await loadFromIndexedDB(dataKey);
+                if (indexedDBVerification === dataString) {
+                    console.log('✅ 方式2成功: IndexedDBに正常保存完了');
+                    console.log(`📊 保存データサイズ: ${Math.round(dataString.length / 1024 * 100) / 100}KB`);
+                    return; // 成功時は終了
+                } else {
+                    throw new Error('IndexedDB保存データの検証に失敗');
+                }
+            }
+            
+            // === 方式3: localStorage緊急フォールバック ===
+            console.log('🔄 方式3: localStorage緊急フォールバック...');
+            localStorage.setItem(dataKey, dataString);
+            
+            // localStorage保存確認
+            const localStorageVerification = localStorage.getItem(dataKey);
+            if (localStorageVerification === dataString) {
+                console.log('✅ 方式3成功: localStorageに正常保存完了');
+                console.log(`📊 保存データサイズ: ${Math.round(dataString.length / 1024 * 100) / 100}KB`);
+                return; // 成功時は終了
             } else {
-                // Web環境: localStorage fallback
-                console.log('🔄 localStorage fallbackでデータ保存...');
-                localStorage.setItem(dataKey, dataString);
-                console.log('✅ localStorageに保存完了');
+                throw new Error('localStorage保存データの検証に失敗');
             }
             
         } catch (error) {
-            console.error('❌ データ保存エラー:', error);
+            console.error('❌ 全ての保存方式が失敗:', error);
+            this.showToast('データの保存に失敗しました。アプリを再起動してください。', 'error');
             
-            // 重要: APK環境でもfallbackとしてlocalStorageを試行
-            try {
-                console.log('🔄 緊急fallback: localStorageで保存を試行...');
-                localStorage.setItem(dataKey, dataString);
-                console.log('✅ Fallback保存成功: localStorage使用');
-            } catch (fallbackError) {
-                console.error('❌ 全ての保存方法が失敗:', fallbackError);
-                this.showToast('データの保存に失敗しました。アプリを再起動してください。', 'error');
-            }
+            // デバッグ情報の出力
+            console.error('🔍 デバッグ情報:');
+            console.error('- Capacitor環境:', isCapacitorEnvironment);
+            console.error('- CapacitorPreferences利用可能:', !!CapacitorPreferences);
+            console.error('- IndexedDBサポート:', indexedDBSupported);
+            console.error('- localStorage利用可能:', !!window.localStorage);
+            console.error('- 保存データサイズ:', dataString.length, 'バイト');
         }
     }
 
