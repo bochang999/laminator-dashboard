@@ -178,9 +178,9 @@ jobs:
 
       - name: Set Version Information
         run: |
-          echo "📋 Setting version information for build..."
-          VERSION_MAJOR="2"
-          VERSION_MINOR="16"
+          echo "📋 Setting version information for Ver.6.6 signing fix..."
+          VERSION_MAJOR="6"
+          VERSION_MINOR="6"
           VERSION_PATCH="${{ github.run_number }}"
           VERSION_TAG="$VERSION_MAJOR.$VERSION_MINOR.$VERSION_PATCH"
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
@@ -193,37 +193,29 @@ jobs:
           ./gradlew clean || echo "Clean skipped (first run)"
           cd ..
 
-      - name: Setup Production Keystore (RecipeBox-proven system)
+      - name: Setup Consistent Development Keystore (Ver.6.6 Fix)
         run: |
-          echo "🔐 Setting up production keystore for APK signing..."
+          echo "🔑 Creating consistent development keystore for seamless updates..."
           cd android
           
-          # Create production keystore if secrets are available
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "📦 Deploying production keystore from GitHub Secrets..."
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > laminator-release.keystore
-            
-            # Set environment variables for Gradle
-            export KEYSTORE_BASE64="${{ secrets.KEYSTORE_BASE64 }}"
-            export KEYSTORE_PASSWORD="${{ secrets.KEYSTORE_PASSWORD }}"
-            export KEY_ALIAS="${{ secrets.KEY_ALIAS }}"
-            export KEY_PASSWORD="${{ secrets.KEY_PASSWORD }}"
-            
-            echo "✅ Production keystore deployed successfully"
-            SIGNING_MODE="production"
+          # Create project-specific keystore if it doesn't exist
+          if [ ! -f "laminator-dev-key.jks" ]; then
+            echo "🔧 Generating project-specific development keystore..."
+            keytool -genkeypair -v -keystore laminator-dev-key.jks \
+              -alias laminator -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Laminator Dashboard,O=BochangDev,C=JP" \
+              -storepass laminator123 -keypass laminator123
+            echo "✅ Development keystore created successfully"
           else
-            echo "🔧 Production keystore not found, generating development keystore..."
-            if [ ! -f "laminator-dev.keystore" ]; then
-              keytool -genkeypair -v -keystore laminator-dev.keystore \
-                -alias laminator-dev -keyalg RSA -keysize 2048 -validity 10000 \
-                -dname "CN=Laminator Dashboard,OU=Development,O=BochangDev,L=Tokyo,ST=Tokyo,C=JP" \
-                -storepass devpassword123 -keypass devpassword123
-              echo "✅ Development keystore created"
-            fi
-            SIGNING_MODE="development"
+            echo "✅ Using existing development keystore"
           fi
           
-          echo "SIGNING_MODE=$SIGNING_MODE" >> $GITHUB_ENV
+          echo "KEYSTORE_EXISTS=true" >> $GITHUB_ENV
+          echo "KEYSTORE_FILE=laminator-dev-key.jks" >> $GITHUB_ENV
+          echo "KEYSTORE_PASSWORD=laminator123" >> $GITHUB_ENV
+          echo "KEY_ALIAS=laminator" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=laminator123" >> $GITHUB_ENV
+          echo "SIGNING_MODE=consistent" >> $GITHUB_ENV
           cd ..
 
       - name: Apply Golden Gradle Template
@@ -233,14 +225,18 @@ jobs:
           cp .github/templates/build.gradle.template android/app/build.gradle
           echo "✅ Golden template applied successfully."
 
-      - name: Build Base APK
+      - name: Build Base APK with Consistent Signing
         run: |
-          echo "🏗️ Building base APK for icon processing..."
+          echo "🏗️ Building consistently signed APK with Capacitor 7 + Android API 35..."
           cd android
           chmod +x gradlew
           
-          echo "🔨 Starting Gradle build with version injection..."
-          ./gradlew clean assembleRelease \
+          echo "🔨 Building signed release APK with consistent laminator keystore..."
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/$KEYSTORE_FILE" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD" \
             -Pandroid.injected.versionName="${{ env.VERSION_TAG }}" \
             -Pandroid.injected.versionCode="${{ github.run_number }}" \
             --no-daemon --stacktrace || ./gradlew assembleDebug --no-daemon --stacktrace
@@ -316,7 +312,7 @@ jobs:
             3. 📱 Tap the APK file to install
             4. 🔄 **Seamless Updates**: Future versions will update without reinstalling
             
-            ## ✨ Ver.2.16 Complete Features
+            ## ✨ Ver.6.6 Signing Fix Features
             - ⏰ **Time Calculator** - Production time and completion prediction
             - 🎞️ **Film Session Management** - Consumption simulation  
             - 📋 **Job Management** - Real-time progress tracking
@@ -343,7 +339,7 @@ jobs:
             - **Version**: ${{ env.VERSION_TAG }}
             - **Build Number**: ${{ github.run_number }}
             - **Build Type**: ${{ env.BUILD_TYPE }}
-            - **Signing Status**: ${{ env.SIGNING_MODE == 'production' && '🔐 Production Keystore' || '🔧 Development Keystore' }}
+            - **Signing Status**: 🔧 Consistent Development Keystore (Ver.6.6 Fix)
             - **Commit**: ${{ github.sha }}
             
             ---
