@@ -1,12 +1,12 @@
-// ===== Capacitor プラグイン設定 Ver.3.0 =====
+// ===== Capacitor プラグイン設定 Ver.3.1 =====
 // Web環境とAPK環境の互換性を確保するCapacitor設定
-let CapacitorStorage, CapacitorFilesystem, CapacitorDirectory, CapacitorEncoding;
+let CapacitorPreferences, CapacitorFilesystem, CapacitorDirectory, CapacitorEncoding;
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         // Capacitorが利用可能な場合はプラグインを使用
         if (window.Capacitor && window.Capacitor.Plugins) {
-            CapacitorStorage = window.Capacitor.Plugins.Storage;
+            CapacitorPreferences = window.Capacitor.Plugins.Preferences;
             CapacitorFilesystem = window.Capacitor.Plugins.Filesystem;
             CapacitorDirectory = window.Capacitor.Plugins.Filesystem.Directory;
             CapacitorEncoding = window.Capacitor.Plugins.Filesystem.Encoding;
@@ -1679,9 +1679,9 @@ class LaminatorDashboard {
         };
         
         try {
-            if (CapacitorStorage) {
+            if (CapacitorPreferences) {
                 // APK環境: Capacitor Storage使用
-                await CapacitorStorage.set({
+                await CapacitorPreferences.set({
                     key: 'laminator_dashboard_v3',
                     value: JSON.stringify(data)
                 });
@@ -1709,9 +1709,9 @@ class LaminatorDashboard {
         try {
             let rawData = null;
             
-            if (CapacitorStorage) {
+            if (CapacitorPreferences) {
                 // APK環境: Capacitor Storage使用
-                const result = await CapacitorStorage.get({ key: 'laminator_dashboard_v3' });
+                const result = await CapacitorPreferences.get({ key: 'laminator_dashboard_v3' });
                 rawData = result.value;
                 console.log('Capacitor Storageからデータを読み込みました');
             } else {
@@ -2276,9 +2276,9 @@ class LaminatorDashboard {
         try {
             let data = null;
             
-            if (CapacitorStorage) {
+            if (CapacitorPreferences) {
                 // APK環境: Capacitor Storage使用
-                const result = await CapacitorStorage.get({ key: 'laminator_dashboard_v3' });
+                const result = await CapacitorPreferences.get({ key: 'laminator_dashboard_v3' });
                 data = result.value;
             } else {
                 // Web環境: localStorage使用
@@ -2359,9 +2359,9 @@ class LaminatorDashboard {
                 const data = e.target.result;
                 JSON.parse(data); // 有効なJSONかチェック
                 
-                if (CapacitorStorage) {
+                if (CapacitorPreferences) {
                     // APK環境: Capacitor Storage使用
-                    await CapacitorStorage.set({
+                    await CapacitorPreferences.set({
                         key: 'laminator_dashboard_v3',
                         value: data
                     });
