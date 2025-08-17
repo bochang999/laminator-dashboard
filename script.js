@@ -1354,11 +1354,11 @@ class LaminatorDashboard {
                 <h3>フィルムセッション履歴</h3>
                 <div class="history-list">
                     ${this.filmSessions.map((session, index) => `
-                        <div class="history-item" onclick="dashboard.toggleSessionDetails('session-${session.id}')" style="cursor: pointer;">
+                        <div class="history-item" onclick="dashboard.toggleHistoryDetails('history-session-${session.id}')" style="cursor: pointer;">
                             <div class="history-header">
                                 <span>フィルム ${index + 1}</span>
                                 <span>${session.status === 'completed' ? '完了' : '進行中'}</span>
-                                <span class="toggle-indicator" id="toggle-session-${session.id}">▼</span>
+                                <span class="toggle-indicator" id="toggle-history-session-${session.id}">▼</span>
                             </div>
                             <div class="history-details">
                                 ${session.jobs.length}ジョブ / ${session.jobs.reduce((sum, job) => {
@@ -1369,7 +1369,7 @@ class LaminatorDashboard {
                                     return sum + (isNaN(procTime) ? 0 : procTime);
                                 }, 0).toFixed(1)}分
                             </div>
-                            <div class="session-job-details" id="session-${session.id}" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">
+                            <div class="history-job-details" id="history-session-${session.id}" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">
                                 <h4 style="font-size: 13px; margin-bottom: 8px; color: var(--primary-color);">ジョブ詳細</h4>
                                 ${session.jobs.map((job, jobIndex) => `
                                     <div style="background: #f8f9fa; padding: 8px; margin: 4px 0; border-radius: 4px; font-size: 12px;">
@@ -1425,6 +1425,22 @@ class LaminatorDashboard {
     toggleSessionDetails(sessionElementId) {
         const element = document.getElementById(sessionElementId);
         const toggleIndicator = document.getElementById(`toggle-${sessionElementId}`);
+        
+        if (element) {
+            if (element.style.display === 'none') {
+                element.style.display = 'block';
+                if (toggleIndicator) toggleIndicator.textContent = '▲';
+            } else {
+                element.style.display = 'none';
+                if (toggleIndicator) toggleIndicator.textContent = '▼';
+            }
+        }
+    }
+
+    // 履歴詳細の表示/非表示切り替え（独立化）
+    toggleHistoryDetails(historyElementId) {
+        const element = document.getElementById(historyElementId);
+        const toggleIndicator = document.getElementById(`toggle-${historyElementId}`);
         
         if (element) {
             if (element.style.display === 'none') {
@@ -1542,12 +1558,22 @@ class LaminatorDashboard {
             ...completedJobs.map(job => headers.map(header => `"${job[header]}"`).join(','))
         ].join('\n');
 
-        // ダウンロード
+        // ダウンロード（Termux環境対応）
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = `laminator_report_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        
+        // より確実なダウンロード処理
+        setTimeout(() => {
+            link.click();
+            setTimeout(() => {
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+            }, 100);
+        }, 100);
         
         console.log('CSV エクスポート完了:', completedJobs.length + '件');
         alert(`CSV エクスポート完了: ${completedJobs.length}件のジョブを保存しました`);
@@ -2187,10 +2213,17 @@ class LaminatorDashboard {
             const a = document.createElement('a');
             a.href = url;
             a.download = filename;
+            a.style.display = 'none';
             document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            
+            // Termux環境対応: より確実なダウンロード処理
+            setTimeout(() => {
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            }, 100);
             
             this.showToast('バックアップファイルをダウンロードしました', 'success');
         } catch (error) {

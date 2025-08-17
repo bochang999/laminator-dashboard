@@ -65,6 +65,11 @@ body {
     line-height: 1.5;
     color: var(--text-color);
     padding-top: env(safe-area-inset-top, 20px);
+    /* スクロール時のオーバーバウンス対策 */
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
+    /* タッチ操作の最適化 */
+    touch-action: pan-y;
 }
 
 /* App Container */
@@ -75,6 +80,10 @@ body {
     min-height: 100vh;
     box-shadow: 0 0 20px rgba(0,0,0,0.15);
     position: relative;
+    /* スクロール時の安定性確保 */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: auto;
 }
 
 /* Header */
@@ -90,6 +99,14 @@ body {
     top: 0;
     z-index: 1000;
     height: var(--header-height);
+    /* スクロール時のデザイン崩れ対策 */
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    /* iOS Safari bounce scroll対策 */
+    -webkit-overflow-scrolling: touch;
 }
 
 .header-title h1 {
