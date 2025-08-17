@@ -50,7 +50,9 @@ jobs:
         run: |
           echo "📦 Installing Capacitor 7 dependencies..."
           npm install @capacitor/cli@7 @capacitor/android@7 @capacitor/core@7
-          echo "✅ Capacitor dependencies installed"
+          echo "📦 Installing Capacitor plugins for native functionality..."
+          npm install @capacitor/storage@1.2.5 @capacitor/filesystem@1.1.1
+          echo "✅ Capacitor dependencies and plugins installed"
 
       - name: Prepare Web Assets and Initialize Capacitor
         run: |
