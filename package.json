@@ -1,6 +1,6 @@
 {
   "name": "laminator-dashboard",
-  "version": "2.16.0",
+  "version": "5.0.0",
   "description": "ラミネート加工作業管理ツール - 時間計算とフィルム消費シミュレーター",
   "main": "index.html",
   "scripts": {
