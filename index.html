@@ -10,10 +10,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     
-    <!-- Capacitor プラグイン読み込み (APK環境での動作確保) -->
+    <!-- Ver.7 Simplified: Minimal Capacitor dependencies -->
     <script src="https://unpkg.com/@capacitor/core@7/dist/capacitor.js"></script>
-    <script src="https://unpkg.com/@capacitor/preferences@7/dist/esm/index.js" type="module"></script>
-    <script src="https://unpkg.com/@capacitor/filesystem@7/dist/esm/index.js" type="module"></script>
 </head>
 <body>
     <div class="app-container">
@@ -179,10 +177,10 @@
     </div>
     
     <footer style="text-align: center; padding: 10px; border-top: 1px solid #ccc; font-size: 12px; color: #888;">
-        Ver. 5.0 - Capacitor多層データ保存システム完全実装版
+        Ver. 7.0 - Simplified System (localStorage-first)
     </footer>
 
-    <script src="script.js"></script>
+    <script src="script-simple.js"></script>
     <!-- テストスクリプト（開発時のみ有効化） -->
     <!-- <script src="test-v3.js"></script> -->
 </body>

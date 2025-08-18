@@ -556,81 +556,166 @@ filmRolls, currentFilmRoll, filmSessions, jobs, settings
 
 ---
 
-## 🔧 Ver.6.10.1 最終修正 - ユーザー報告問題の完全解決
+## 🔄 Ver.5.0復旧セッション - 結果報告と今後の課題整理
 
 ### 📅 作業日時: 2025-08-17 最終セッション
 
-#### ✅ 修正した問題
+#### 🎯 セッション目標
+- ユーザー指摘：「更新エラー出た」「フィルム入力全然違う」を解決
+- Ver.5.0 #53「Capacitor多層データ保存システム完全実装」の復旧
+- APK更新エラーの根本解決
 
-##### 1. **開始時間入力問題の完全修正**
-**症状**: 開始時間が入力しても変化しない  
-**修正内容**:
+#### ✅ 実施した作業
+
+##### 1. **Ver.5.0 (#53) コミット完全復旧**
+```bash
+# 実行したアクション
+git log --oneline | grep ccee0b7  # Ver.5.0コミット特定
+# script.js を ccee0b7 の状態に完全復旧
+# app-minimal.js（間違った実装）を削除
+# index.html をVer.5.0構造に戻す
+```
+
+##### 2. **APK署名システム変更（更新エラー対策）**
+```yaml
+# .github/workflows/build-apk.yml 修正
+# Before: laminator-dev-key.jks
+# After: laminator-release-v5.keystore (Ver.5.0互換)
+-alias laminator-release -keyalg RSA -keysize 2048 -validity 10000
+-dname "CN=Laminator Dashboard Ver.5.0,O=BochangDev,C=JP"
+-storepass laminator2025 -keypass laminator2025
+```
+
+##### 3. **Capacitor多層データ保存システム復旧確認**
 ```javascript
-// app-minimal.js:766-788 - editStartTime()関数強化
-this.workStarted = true;  // 確実にtrueに設定
-// ステータス表示も同時更新
-if (finishStatusElement.textContent === '業務開始前') {
-    finishStatusElement.textContent = '業務進行中';
+// Ver.5.0の実装内容（復旧済み）
+async function initializeCapacitor() {
+    if (typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform) {
+        const { Preferences } = await import('https://unpkg.com/@capacitor/preferences@7/dist/esm/index.js');
+        const { Filesystem, Directory, Encoding } = await import('https://unpkg.com/@capacitor/filesystem@7/dist/esm/index.js');
+        // 3層フォールバック: Preferences → IndexedDB → localStorage
+    }
 }
 ```
 
-##### 2. **フィルム入力テンプレート機能実装**
-**参考**: 開発ログの記録を確認  
-**実装内容**:
+#### ❌ 判明した問題点
+
+##### 1. **Capacitor多層データ保存の実装課題**
+- **問題**: Capacitor Preferencesが実際のAPK環境で期待通り動作しない可能性
+- **症状**: Web環境では動作するが、APKでデータ保存・復元が不安定
+- **原因**: Capacitor 7のPreferences API がTermux APK環境との互換性問題
+
+##### 2. **バージョン管理の複雑化**
+- **問題**: Ver.2.x → Ver.5.0 → Ver.6.x の複雑な番号体系
+- **影響**: 開発の継続性と保守性の悪化
+- **必要**: シンプルな連番バージョン管理への移行
+
+##### 3. **APK更新エラーの根本原因未解決**
+- **推測**: 署名キー変更だけでは根本解決にならない可能性
+- **課題**: APK→APK更新時の署名検証問題が再発する恐れ
+- **必要**: 更新エラーの技術的根本原因の詳細調査
+
+#### 📋 次回セッション開始時の課題
+
+##### 🚨 **最優先課題：APKデータ保存方法の再設計**
+
+**現在の状況**:
+- Capacitor多層データ保存システムが複雑すぎて不安定
+- APK環境での実際の動作が予測困難
+- シンプルで確実な保存方法が必要
+
+**次回の取り組み方針**:
 ```javascript
-// app-minimal.js:416-468 - loadJobTemplate()関数（既存実装済み）
-const templates = {
-    'チラシA4': { name: 'A4チラシ印刷', size: 'A4', timePerSheet: 30 },
-    'ポスターA3': { name: 'A3ポスター', size: 'A3', timePerSheet: 45 },
-    // 6種類のテンプレート実装済み
-};
+// 1. Capacitor依存を最小化したシンプル保存
+// localStorage → IndexedDB → File API の段階的フォールバック
+// 複雑なCapacitor Preferencesは使用しない
+
+// 2. APK環境での実証実験
+// 実際のAPKで保存・復元が確実に動作するか検証
+// 開発環境とAPK環境の動作差異を詳細調査
 ```
 
-**UI追加**:
-```html
-<!-- index.html:139-146 - テンプレートボタン追加 -->
-<button class="btn btn-secondary" onclick="dashboard.loadJobTemplate()">
-    📝 テンプレート
-</button>
+##### 📊 **バージョン管理の簡素化**
+
+**現在の問題**:
+- Ver.2.18 → Ver.5.0 → Ver.6.10 の複雑な体系
+- GitHub Actions の Version Tag 管理が煩雑
+
+**次回の改善方針**:
+```yaml
+# シンプルな連番管理に統一
+# Ver.7, Ver.8, Ver.9, Ver.10... 
+# GitHub Actions: VERSION_MAJOR="7" (固定増分)
+# ユーザーにとって分かりやすい番号体系
 ```
 
-**CSS追加**:
-```css
-/* style.css:39-58 - btn-secondaryスタイル */
-.btn-secondary {
-    background-color: var(--dark-gray);
-    /* ホバー効果・アニメーション付き */
-}
-```
+##### 🔍 **APK更新エラーの根本原因調査**
 
-#### 🎯 完成した機能セット
+**調査が必要な技術要素**:
+1. **Android APK署名検証メカニズム**:
+   - APK-to-APK 更新時の署名チェーン検証
+   - Termux環境での特殊な制約の有無
+   
+2. **GitHub Actions署名の一貫性**:
+   - 毎回のビルドで同一署名が生成されているか
+   - キーストア生成処理の冪等性確保
+   
+3. **APKパッケージ構造の整合性**:
+   - Capacitor生成APKの内部構造変化
+   - マニフェスト・権限設定の変更影響
 
-| 機能 | 状態 | 詳細 |
-|------|------|------|
-| **開始時間入力** | ✅ 完全修正 | 入力時にworkStarted=true確実設定 |
-| **就業時間変更** | ✅ 正常動作 | 元々正常（問題なし） |
-| **フィルムテンプレート** | ✅ 完全実装 | 6種類+UI+CSS完備 |
-| **ジョブテンプレート** | ✅ 完全実装 | チラシ・ポスター・名刺等対応 |
+#### 🎯 次回セッション開始指示
 
-#### 📋 使用方法（ユーザー向け）
+**次回開始時に実行すべきアクション**:
 
-##### **開始時間設定**:
-1. 「開始時刻」の「--:--」部分をタップ
-2. 時刻を「HH:MM」形式で入力（例: 08:30）
-3. 「業務進行中」ステータスに自動変更
+1. **バージョン体系の簡素化**:
+   ```bash
+   # VERSION_MAJOR を "7" に固定
+   # リリース名を "Laminator Dashboard v7" に統一
+   ```
 
-##### **フィルム・ジョブテンプレート**:
-1. 「📝 テンプレート」ボタンをタップ
-2. 1-6の番号で種類選択
-3. フォームに設定値が自動入力
-4. 枚数のみ手動入力してジョブ追加
+2. **データ保存の再設計**:
+   ```javascript
+   // シンプルなlocalStorage中心設計
+   // Capacitor依存の最小化
+   // APK環境での確実な動作を最優先
+   ```
 
-#### 🚀 Ver.6.10.1 APKビルド準備完了
+3. **更新エラー原因の体系的調査**:
+   ```bash
+   # APK署名情報の詳細ログ出力
+   # 連続ビルドでの署名一貫性検証
+   # 実機での更新失敗パターン詳細分析
+   ```
 
-修正項目:
-- ✅ 開始時間入力の動作修正
-- ✅ フィルムテンプレート機能のUI完成
-- ✅ CSS最適化・レスポンシブ対応
-- ✅ 全機能統合テスト完了
+#### 📝 開発継続のための重要メモ
 
-次のアクション: GitHubへプッシュ → Actions自動ビルド → APK配布
+**現在の状態**:
+- Ver.5.0復旧作業は形式的には完了
+- しかし根本的な技術課題（データ保存・更新エラー）は未解決
+- 一度リセットして再設計が必要
+
+**技術的負債**:
+- Capacitor多層システムの複雑性
+- バージョン管理の混乱
+- APK更新メカニズムの不安定性
+
+**成功への道筋**:
+1. シンプル・確実・保守しやすい設計への回帰
+2. APK環境での実証に基づく開発
+3. 段階的機能実装による品質確保
+
+---
+
+### 🔄 次回セッション再開用の要約
+
+**プロジェクト状況**: ラミネーター・ダッシュボード開発
+**現在のバージョン**: Ver.5.0復旧版（技術課題あり）
+**主要課題**: データ保存の不安定性、APK更新エラー、バージョン管理の複雑化
+
+**次回最優先タスク**:
+1. バージョン番号を Ver.7 に簡素化
+2. Capacitor依存を減らしたシンプルなデータ保存設計
+3. APK更新エラーの根本原因調査・解決
+
+**技術方針転換**: 複雑な多層システムを諦め、シンプル・確実・APK互換性重視の設計へ

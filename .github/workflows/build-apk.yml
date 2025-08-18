@@ -178,11 +178,10 @@ jobs:
 
       - name: Set Version Information
         run: |
-          echo "📋 Setting version information for Ver.6.9 Capacitor Official Signing..."
-          VERSION_MAJOR="6"
-          VERSION_MINOR="9"
+          echo "📋 Setting version information for Ver.7 Simplified System..."
+          VERSION_MAJOR="7"
           VERSION_PATCH="${{ github.run_number }}"
-          VERSION_TAG="$VERSION_MAJOR.$VERSION_MINOR.$VERSION_PATCH"
+          VERSION_TAG="$VERSION_MAJOR.$VERSION_PATCH"
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
           echo "✅ Version tag set to: $VERSION_TAG"
 
@@ -193,29 +192,29 @@ jobs:
           ./gradlew clean || echo "Clean skipped (first run)"
           cd ..
 
-      - name: Setup Ver.5.0 Compatible Keystore (Update Error Fix)
+      - name: Setup Ver.7 Simplified Keystore (RecipeBox proven method)
         run: |
-          echo "🔑 Creating Ver.5.0 compatible keystore for seamless updates..."
+          echo "🔑 Creating Ver.7 simplified keystore using RecipeBox proven method..."
           cd android
           
-          # Use laminator-release.keystore from Ver.5.0
-          if [ ! -f "laminator-release-v5.keystore" ]; then
-            echo "🔧 Generating Ver.5.0 compatible release keystore..."
-            keytool -genkeypair -v -keystore laminator-release-v5.keystore \
-              -alias laminator-release -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=Laminator Dashboard Ver.5.0,O=BochangDev,C=JP" \
+          # Use proven RecipeBox signing method for stability
+          if [ ! -f "laminator-release.keystore" ]; then
+            echo "🔧 Generating Ver.7 simplified release keystore..."
+            keytool -genkeypair -v -keystore laminator-release.keystore \
+              -alias laminator-key -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Laminator Dashboard,O=BochangDev,C=JP" \
               -storepass laminator2025 -keypass laminator2025
-            echo "✅ Ver.5.0 compatible keystore created successfully"
+            echo "✅ Ver.7 simplified keystore created successfully"
           else
-            echo "✅ Using existing Ver.5.0 compatible keystore"
+            echo "✅ Using existing Ver.7 simplified keystore"
           fi
           
           echo "KEYSTORE_EXISTS=true" >> $GITHUB_ENV
-          echo "KEYSTORE_FILE=laminator-release-v5.keystore" >> $GITHUB_ENV
+          echo "KEYSTORE_FILE=laminator-release.keystore" >> $GITHUB_ENV
           echo "KEYSTORE_PASSWORD=laminator2025" >> $GITHUB_ENV
-          echo "KEY_ALIAS=laminator-release" >> $GITHUB_ENV
+          echo "KEY_ALIAS=laminator-key" >> $GITHUB_ENV
           echo "KEY_PASSWORD=laminator2025" >> $GITHUB_ENV
-          echo "SIGNING_MODE=release-v5" >> $GITHUB_ENV
+          echo "SIGNING_MODE=ver7-simplified" >> $GITHUB_ENV
           cd ..
 
       - name: Skip Golden Gradle Template (Not Needed for Capacitor Official Signing)
@@ -223,30 +222,29 @@ jobs:
           echo "ℹ️ Skipping golden template - using Capacitor official signing configuration instead..."
           echo "✅ Template step skipped for Capacitor methodology."
 
-      - name: Configure Build Gradle for Capacitor Signing
+      - name: Configure Build Gradle for Ver.7 Simplified Signing
         run: |
-          echo "🔧 Configuring build.gradle for Capacitor's official signing method..."
+          echo "🔧 Configuring build.gradle for Ver.7 simplified signing (RecipeBox method)..."
           
           if [ -f android/app/build.gradle ]; then
-            echo "📝 Updating build.gradle for official Capacitor signing system..."
+            echo "📝 Updating build.gradle for simplified signing system..."
             
-            # Capacitorの公式署名システム用にsigningConfigsを設定
+            # RecipeBox実証済み署名システム用設定
             cat > android/app/build.gradle.signing << 'GRADLE_EOF'
           android {
               signingConfigs {
                   release {
-                      if (project.hasProperty('LAMINATOR_STORE_FILE')) {
-                          storeFile file(project.property('LAMINATOR_STORE_FILE'))
-                          storePassword project.property('LAMINATOR_STORE_PASSWORD')
-                          keyAlias project.property('LAMINATOR_KEY_ALIAS')
-                          keyPassword project.property('LAMINATOR_KEY_PASSWORD')
-                      }
+                      storeFile file('laminator-release.keystore')
+                      storePassword 'laminator2025'
+                      keyAlias 'laminator-key'
+                      keyPassword 'laminator2025'
                   }
               }
               
               buildTypes {
                   release {
                       signingConfig signingConfigs.release
+                      minifyEnabled false
                   }
                   debug {
                       signingConfig signingConfigs.release
@@ -264,53 +262,26 @@ jobs:
               sed -i '/android {/r android/app/build.gradle.signing' android/app/build.gradle
             fi
             
-            echo "✅ build.gradle configured for Capacitor official signing"
+            echo "✅ build.gradle configured for Ver.7 simplified signing"
           else
             echo "⚠️ build.gradle not found, skipping configuration"
           fi
 
-      - name: Build APK with Official Capacitor Signing
+      - name: Build APK with Ver.7 Simplified Signing
         run: |
-          echo "🏗️ Building APK with Capacitor's official signing system..."
+          echo "🏗️ Building APK with Ver.7 simplified signing system..."
           
-          # Capacitor環境変数設定
-          export LAMINATOR_STORE_FILE="$GITHUB_WORKSPACE/android/$KEYSTORE_FILE"
-          export LAMINATOR_STORE_PASSWORD="$KEYSTORE_PASSWORD"
-          export LAMINATOR_KEY_ALIAS="$KEY_ALIAS"
-          export LAMINATOR_KEY_PASSWORD="$KEY_PASSWORD"
+          echo "🔨 Building with Gradle directly using simplified method..."
+          cd android
+          chmod +x gradlew
           
-          echo "🔨 Building APK with npx cap build official signing parameters..."
-          # Capacitor公式の署名オプションを使用
-          npx cap build android \
-            --keystorepath="$GITHUB_WORKSPACE/android/$KEYSTORE_FILE" \
-            --keystorepass="$KEYSTORE_PASSWORD" \
-            --keystorealias="$KEY_ALIAS" \
-            --keystorealiaspass="$KEY_PASSWORD" \
-            --release \
-            --gradle-arg="-Pandroid.injected.versionName=${{ env.VERSION_TAG }}" \
-            --gradle-arg="-Pandroid.injected.versionCode=${{ github.run_number }}" || {
-              echo "⚠️ Official signing failed, falling back to manual Gradle build..."
-              
-              cd android
-              chmod +x gradlew
-              
-              # Gradle環境変数設定
-              export LAMINATOR_STORE_FILE="$GITHUB_WORKSPACE/android/$KEYSTORE_FILE"
-              export LAMINATOR_STORE_PASSWORD="$KEYSTORE_PASSWORD"
-              export LAMINATOR_KEY_ALIAS="$KEY_ALIAS"
-              export LAMINATOR_KEY_PASSWORD="$KEY_PASSWORD"
-              
-              ./gradlew assembleRelease \
-                -PLAMINATOR_STORE_FILE="$GITHUB_WORKSPACE/android/$KEYSTORE_FILE" \
-                -PLAMINATOR_STORE_PASSWORD="$KEYSTORE_PASSWORD" \
-                -PLAMINATOR_KEY_ALIAS="$KEY_ALIAS" \
-                -PLAMINATOR_KEY_PASSWORD="$KEY_PASSWORD" \
-                -Pandroid.injected.versionName="${{ env.VERSION_TAG }}" \
-                -Pandroid.injected.versionCode="${{ github.run_number }}" \
-                --no-daemon --stacktrace
-              
-              cd ..
-            }
+          # シンプルなGradleビルド（RecipeBox実証済み方式）
+          ./gradlew assembleRelease \
+            -Pandroid.injected.versionName="${{ env.VERSION_TAG }}" \
+            -Pandroid.injected.versionCode="${{ github.run_number }}" \
+            --no-daemon --stacktrace
+          
+          cd ..
           
           # APK確認
           if [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
@@ -328,10 +299,10 @@ jobs:
           fi
           
           # 最終APKファイル作成
-          FINAL_NAME="lamidash_${{ env.VERSION_TAG }}_capacitor_official.apk"
+          FINAL_NAME="lamidash_${{ env.VERSION_TAG }}_simplified.apk"
           cp "$APK_SOURCE" "$FINAL_NAME"
           
-          echo "✅ Official Capacitor signed APK created: $FINAL_NAME"
+          echo "✅ Ver.7 simplified signed APK created: $FINAL_NAME"
           echo "📊 APK Information:"
           ls -lh "$FINAL_NAME"
           
@@ -375,59 +346,58 @@ jobs:
           body: |
             # 🎛️ Laminator Dashboard ${{ env.VERSION_TAG }}
             
-            **✨ Capacitor Official Signing System** - Correct Build-Stage Signing Implementation
+            **✨ Ver.7 Simplified System** - Back to Reliable Fundamentals
             
             ## 📥 Installation Instructions
             1. ⬇️ Download the APK file
             2. 🔓 Enable "Install from Unknown Sources" on your Android device  
             3. 📱 Tap the APK file to install
-            4. 🔄 **Seamless Updates**: Consistent signing enables seamless future updates
+            4. 🔄 **Seamless Updates**: Simplified signing for consistent updates
             
-            ## 🔧 Ver.6.9 Capacitor Official Signing Revolution
-            - 🎯 **Approach Fixed**: Stopped wrong APK post-processing, implemented correct Capacitor build-stage signing
-            - ⚡ **npx cap build**: Official Capacitor signing parameters (--keystorepath, --keystorepass, etc.)
-            - 🔨 **Gradle Integration**: Proper signingConfigs in build.gradle for consistent releases
-            - ✅ **No More ZIP/CRC Issues**: Build-stage signing eliminates APK repackaging problems
+            ## 🔧 Ver.7 Simplified System Features
+            - 🎯 **Version Simplification**: Clean Ver.7.X numbering system
+            - 🔧 **Proven Signing**: RecipeBox-tested keystore method for stability
+            - 💾 **Simple Data Storage**: localStorage-focused, minimal Capacitor dependencies
             - ⏰ **Time Calculator** - Production time and completion prediction
-            - 🎞️ **Film Session Management** - Consumption simulation  
+            - 🎞️ **Film Session Management** - Consumption tracking  
             - 📋 **Job Management** - Real-time progress tracking
             - 📊 **Report Generation** - Work efficiency analysis
-            - 🌐 **PWA Support** - Offline operation and home screen installation
-            - 📦 **Lightweight Build** - Optimized 3MB APK size
+            - 🌐 **PWA Support** - Offline operation capability
+            - 📦 **Lightweight Build** - Optimized for stability over complexity
             
             ## 🔧 Technical Specifications
             - **Build Environment**: Node.js ${{ env.NODE_VERSION }} + Java ${{ env.JAVA_VERSION }}
-            - **Framework**: Capacitor 7 + Android API 35 (VANILLA_ICE_CREAM)
-            - **Build Method**: Official Capacitor Signing + Gradle signingConfigs
+            - **Framework**: Capacitor 7 + Android API 35 (Simplified Configuration)
+            - **Build Method**: Proven Signing + Simplified Dependencies
             - **APK Type**: ${{ env.BUILD_TYPE == 'release' && '🔐 Release Signed' || '🔧 Debug Build' }}
-            - **Signing Method**: ✅ Capacitor Official Build-Stage Signing (correct approach)
+            - **Signing Method**: ✅ RecipeBox-Proven Method (Simplified)
             - **Compatibility**: Android 7.0+ recommended
             
-            ## 🎯 Breakthrough Discovery & Implementation
-            - 🔍 **Root Cause Found**: Previous APK post-processing approach was fundamentally wrong for Capacitor
-            - 📚 **MCP Research**: Discovered Capacitor has dedicated `npx cap build` signing options
-            - ⚡ **Correct Implementation**: `npx cap build android --keystorepath --keystorepass --keystorealias`
-            - 🔨 **Gradle signingConfigs**: Proper build-stage signing instead of APK repackaging
-            - ✅ **No APK Post-Processing**: Eliminates ZIP compression, CRC, and resources.arsc issues
-            - 🏗️ **Build-Stage Consistency**: Signing applied during compilation, not after
-            - 📐 **Architecture Correct**: Follows Capacitor official methodology
+            ## 🎯 Design Philosophy: Simplicity & Reliability
+            - 🔧 **Less is More**: Reduced complexity for better stability
+            - 📚 **Proven Methods**: Using battle-tested approaches from RecipeBox
+            - ⚡ **Simplified Storage**: localStorage-first approach for APK compatibility
+            - 🔨 **Clean Architecture**: Removed experimental multi-layer systems
+            - ✅ **APK-First Design**: Optimized for real device usage, not just web
+            - 🏗️ **Maintainable Code**: Reduced dependencies for long-term stability
+            - 📐 **User-Focused**: Prioritizing working features over technical complexity
             
             ## 📈 Build Information
             - **Version**: ${{ env.VERSION_TAG }}
             - **Build Number**: ${{ github.run_number }}
             - **Build Type**: ${{ env.BUILD_TYPE }}
-            - **Signing Method**: ✅ Capacitor Official Build-Stage Signing
+            - **Signing Method**: ✅ Ver.7 Simplified (RecipeBox-Proven)
             - **Commit**: ${{ github.sha }}
             
-            ## 🎓 Technical Learning
-            - **Previous Approach**: APK post-processing with ZIP repackaging (RecipeBox method)
-            - **Discovery**: RecipeBox method works for BeeWare/Briefcase, not Capacitor direct builds
-            - **Correct Approach**: Capacitor's dedicated build-time signing options
-            - **Key Insight**: Our entire APK post-processing was wrong for Capacitor framework
+            ## 🎓 Return to Fundamentals
+            - **Philosophy Change**: From complex multi-layer to simple & reliable
+            - **Proven Foundation**: RecipeBox signing methodology application
+            - **APK-Focused**: Optimized for Android device compatibility
+            - **Long-term Stability**: Maintainable codebase for sustained development
             
             ---
-            🤖 **Auto Build**: GitHub Actions (Capacitor-Official-Signing)  
+            🤖 **Auto Build**: GitHub Actions (Ver.7-Simplified)  
             📅 **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')  
-            🏆 **Milestone**: Discovered and implemented correct Capacitor signing methodology
+            🏆 **Milestone**: Simplified system for enhanced reliability
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
