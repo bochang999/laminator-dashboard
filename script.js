@@ -1806,6 +1806,7 @@ class LaminatorDashboard {
             }
         } catch (error) {
             console.warn('❌ Filesystem保存失敗、fallbackを使用:', error);
+            this.showToast(`CSV APKエラー: ${error.message || error}`, 'error');
             this.fallbackCsvDownload(csvContent, filename, completedJobs.length);
         }
     }
@@ -2574,6 +2575,9 @@ class LaminatorDashboard {
                     // Android 11+ スコープドストレージ対応: 権限確認とフォルダ作成
                     await ensureFsReady();
                     
+                    // デバッグ情報表示
+                    this.showToast(`デバッグ: Directory=${CapacitorDirectory?.Documents}, Encoding=${CapacitorEncoding?.UTF8}`, 'info');
+                    
                     await CapacitorFilesystem.writeFile({
                         path: `LamiOpe/${filename}`,
                         data: data,
@@ -2586,6 +2590,7 @@ class LaminatorDashboard {
                     
                 } catch (fsError) {
                     console.warn('❌ Filesystem保存失敗、blob保存にfallback:', fsError);
+                    this.showToast(`APKエラー: ${fsError.message || fsError}`, 'error');
                     this.fallbackBlobDownload(data, filename);
                 }
             } else {

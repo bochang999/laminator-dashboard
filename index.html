@@ -11,9 +11,17 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     
     <!-- Capacitor プラグイン読み込み (APK環境での動作確保) -->
-    <script src="https://unpkg.com/@capacitor/core@7/dist/capacitor.js"></script>
-    <script src="https://unpkg.com/@capacitor/preferences@7/dist/esm/index.js" type="module"></script>
-    <script src="https://unpkg.com/@capacitor/filesystem@7/dist/esm/index.js" type="module"></script>
+    <script>
+        // APK環境でのCapacitor検出
+        if (typeof window.Capacitor !== 'undefined') {
+            // ネイティブ環境では自動的に利用可能
+            console.log('✅ ネイティブCapacitor環境検出');
+        } else {
+            // Web環境でのみCDN読み込み
+            console.log('🌐 Web環境でCapacitor CDN読み込み');
+            document.write('<script src="https://unpkg.com/@capacitor/core@7/dist/capacitor.js"><\/script>');
+        }
+    </script>
 </head>
 <body>
     <div class="app-container">
