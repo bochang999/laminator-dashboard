@@ -3662,5 +3662,310 @@ class LaminatorDashboard {
     }
 }
 
-// グローバルダッシュボードインスタンス
+// Ver.5.0 メインアプリケーション統合システム復旧
+class LaminatorApp {
+    constructor() {
+        console.log('🔄 ラミオペ・ダッシュボード Ver.5.0 起動開始...');
+        
+        // 基本プロパティ初期化
+        this.filmSessions = [];
+        this.workStartTime = null;
+        this.targetEndTime = '17:00';
+        this.extraTime = 0;
+        this.currentFilmSession = null;
+        this.timeSettings = {
+            workStart: '08:30',
+            workEnd: '17:00',
+            overtimeEnd: '18:00',
+            lunchBreak: 60,
+            cleanupTime: 15,
+            diffFilmChange: 15
+        };
+
+        // 初期化実行
+        this.init();
+    }
+
+    async init() {
+        try {
+            // Capacitor初期化
+            await initializeCapacitor();
+            
+            // データ読み込み
+            await this.loadData();
+            
+            // イベントリスナー設定
+            this.setupEventListeners();
+            
+            // 画面更新
+            this.updateDisplay();
+            this.renderJobList();
+            
+            // 時刻表示開始
+            this.startTimeDisplay();
+            
+            console.log('✅ アプリケーション初期化完了');
+            
+        } catch (error) {
+            console.error('❌ アプリケーション初期化エラー:', error);
+        }
+    }
+
+    // データ読み込み
+    async loadData() {
+        try {
+            const data = await loadFromIndexedDB('laminatorData');
+            if (data) {
+                this.filmSessions = data.filmSessions || [];
+                this.workStartTime = data.workStartTime;
+                this.targetEndTime = data.targetEndTime || '17:00';
+                this.extraTime = data.extraTime || 0;
+                this.timeSettings = { ...this.timeSettings, ...data.timeSettings };
+                this.currentFilmSession = data.currentFilmSession;
+                console.log('✅ データ読み込み成功');
+            }
+        } catch (error) {
+            console.error('❌ データ読み込みエラー:', error);
+        }
+    }
+
+    // データ保存
+    async saveData() {
+        try {
+            const data = {
+                filmSessions: this.filmSessions,
+                workStartTime: this.workStartTime,
+                targetEndTime: this.targetEndTime,
+                extraTime: this.extraTime,
+                timeSettings: this.timeSettings,
+                currentFilmSession: this.currentFilmSession,
+                lastUpdated: new Date().toISOString()
+            };
+            await saveToIndexedDB('laminatorData', data);
+            console.log('✅ データ保存成功');
+        } catch (error) {
+            console.error('❌ データ保存エラー:', error);
+        }
+    }
+
+    // 時刻表示更新
+    startTimeDisplay() {
+        const updateTime = () => {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('ja-JP', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            
+            const timeElement = document.getElementById('currentTime');
+            if (timeElement) {
+                timeElement.textContent = timeString;
+            }
+        };
+        
+        updateTime();
+        setInterval(updateTime, 1000);
+    }
+
+    // 画面更新
+    updateDisplay() {
+        this.updateFinishTime();
+        this.updateTimeDisplay();
+    }
+
+    // 終了予定時刻更新
+    updateFinishTime() {
+        const finishElement = document.getElementById('finalFinishTime');
+        const statusElement = document.getElementById('finishStatus');
+        
+        if (!this.workStartTime) {
+            if (finishElement) finishElement.textContent = '--:--';
+            if (statusElement) statusElement.textContent = '業務開始前';
+            return;
+        }
+
+        try {
+            const [startHour, startMinute] = this.workStartTime.split(':').map(Number);
+            const startMinutes = startHour * 60 + startMinute;
+            
+            // 総作業時間計算
+            let totalWorkMinutes = 0;
+            this.filmSessions.forEach(session => {
+                session.jobs.forEach(job => {
+                    if (!job.completed) {
+                        totalWorkMinutes += job.processingTime || 0;
+                    }
+                });
+            });
+            
+            // 昼休み・片付け・追加時間
+            const finishMinutes = startMinutes + totalWorkMinutes + 
+                                 this.timeSettings.lunchBreak + 
+                                 this.timeSettings.cleanupTime + 
+                                 this.extraTime;
+            
+            const finishHour = Math.floor(finishMinutes / 60);
+            const finishMin = finishMinutes % 60;
+            const finishTime = `${String(finishHour).padStart(2, '0')}:${String(finishMin).padStart(2, '0')}`;
+            
+            if (finishElement) finishElement.textContent = finishTime;
+            
+            // ステータス判定
+            const [targetHour, targetMinute] = this.targetEndTime.split(':').map(Number);
+            const targetMinutes = targetHour * 60 + targetMinute;
+            
+            let status = '定時内';
+            if (finishMinutes > targetMinutes) {
+                const overtimeMinutes = finishMinutes - targetMinutes;
+                status = `残業 +${overtimeMinutes}分`;
+            }
+            
+            if (statusElement) statusElement.textContent = status;
+            
+        } catch (error) {
+            console.error('❌ 終了時刻計算エラー:', error);
+            if (finishElement) finishElement.textContent = 'エラー';
+            if (statusElement) statusElement.textContent = '計算エラー';
+        }
+    }
+
+    // 時刻表示更新
+    updateTimeDisplay() {
+        const startElement = document.getElementById('workStartTime');
+        const targetElement = document.getElementById('targetEndTime');
+        
+        if (startElement) {
+            startElement.textContent = this.workStartTime || '--:--';
+        }
+        if (targetElement) {
+            targetElement.textContent = this.targetEndTime;
+        }
+    }
+
+    // ジョブリスト描画
+    renderJobList() {
+        const container = document.getElementById('jobListContainer');
+        if (!container) return;
+
+        if (this.filmSessions.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    まだジョブが登録されていません<br>
+                    フィルム管理機能でジョブを追加してください
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        this.filmSessions.forEach((session, index) => {
+            html += `
+                <div class="film-session">
+                    <div class="session-header">
+                        <div class="session-title">フィルム ${index + 1}</div>
+                        <div class="session-status">残量: ${(session.filmRemaining || 0).toFixed(1)}m</div>
+                    </div>
+                    <div class="session-jobs">
+            `;
+            
+            session.jobs.forEach((job, jobIndex) => {
+                html += `
+                    <div class="job-item ${job.completed ? 'completed' : ''}">
+                        <div class="job-info">
+                            <div class="job-name">ジョブ ${jobIndex + 1} (${job.sheets}枚)</div>
+                            <div class="job-details">${job.processingTime.toFixed(1)}分 / ${job.usageLength.toFixed(2)}m</div>
+                        </div>
+                        <div class="job-actions">
+                            <button class="job-complete-btn" onclick="app.toggleJobComplete(${index}, ${jobIndex})">
+                                ${job.completed ? '未完了に戻す' : '完了'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    // ジョブ完了切り替え
+    toggleJobComplete(sessionIndex, jobIndex) {
+        if (this.filmSessions[sessionIndex] && this.filmSessions[sessionIndex].jobs[jobIndex]) {
+            this.filmSessions[sessionIndex].jobs[jobIndex].completed = 
+                !this.filmSessions[sessionIndex].jobs[jobIndex].completed;
+            
+            this.saveData();
+            this.updateDisplay();
+            this.renderJobList();
+        }
+    }
+
+    // 業務開始
+    startWork() {
+        const now = new Date();
+        this.workStartTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        this.saveData();
+        this.updateDisplay();
+        alert('業務を開始しました: ' + this.workStartTime);
+    }
+
+    // 設定表示
+    showSettings() {
+        const modal = document.getElementById('settingsModal');
+        if (modal) {
+            modal.classList.add('active');
+            modal.style.display = 'flex';
+        }
+    }
+
+    // 設定非表示
+    hideSettings() {
+        const modal = document.getElementById('settingsModal');
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+    }
+
+    // レポート表示
+    showReport() {
+        const modal = document.getElementById('reportModal');
+        if (modal) {
+            modal.classList.add('active');
+            modal.style.display = 'flex';
+        }
+    }
+
+    // レポート非表示
+    hideReport() {
+        const modal = document.getElementById('reportModal');
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+    }
+
+    // イベントリスナー設定
+    setupEventListeners() {
+        // 設定モーダルクローズ
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                this.hideSettings();
+                this.hideReport();
+            }
+        });
+
+        console.log('✅ イベントリスナー設定完了');
+    }
+}
+
+// グローバルインスタンス作成
+window.app = new LaminatorApp();
+window.appInstance = window.app; // LaminatorDashboardクラスとの連携用
 window.dashboard = new LaminatorDashboard();
