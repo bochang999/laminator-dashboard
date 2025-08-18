@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APK環境シミュレーション - ラミオペ・ダッシュボード</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .simulation-banner {
+            background: #e74c3c;
+            color: white;
+            text-align: center;
+            padding: 10px;
+            font-weight: bold;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+        }
+        body { margin-top: 40px; }
+        .simulation-controls {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 9998;
+        }
+    </style>
+</head>
+<body>
+    <div class="simulation-banner">
+        🎭 APK環境シミュレーション中 - バンドル済みCapacitorプラグインを模擬
+    </div>
+    
+    <div class="simulation-controls">
+        📱 仮想APK環境<br>
+        🔧 バンドル方式テスト中
+    </div>
+
+    <!-- APK環境のCapacitorをモック -->
+    <script>
+        console.log('🎭 APK環境シミュレーション開始');
+        
+        // APK環境のCapacitorオブジェクトを完全にモック
+        window.Capacitor = {
+            // ネイティブプラットフォーム検出（APK環境として返す）
+            isNativePlatform: () => {
+                console.log('🎭 isNativePlatform() called - returning true (APK simulation)');
+                return true;
+            },
+            
+            // APKのバンドル済みプラグインをモック
+            Plugins: {
+                Preferences: {
+                    async get({ key }) {
+                        console.log('🎭 Mock Preferences.get:', key);
+                        const value = localStorage.getItem(`capacitor_pref_${key}`);
+                        return { value };
+                    },
+                    async set({ key, value }) {
+                        console.log('🎭 Mock Preferences.set:', key, '=', value?.substring(0, 100) + '...');
+                        localStorage.setItem(`capacitor_pref_${key}`, value);
+                    },
+                    async remove({ key }) {
+                        console.log('🎭 Mock Preferences.remove:', key);
+                        localStorage.removeItem(`capacitor_pref_${key}`);
+                    },
+                    async keys() {
+                        const keys = Object.keys(localStorage).filter(k => k.startsWith('capacitor_pref_'));
+                        return { keys: keys.map(k => k.replace('capacitor_pref_', '')) };
+                    }
+                },
+                
+                Filesystem: {
+                    async writeFile({ path, data, directory, encoding }) {
+                        console.log('🎭 Mock Filesystem.writeFile:', { path, directory, encoding, dataSize: data.length });
+                        
+                        // LocalStorageに保存（実際のファイルシステムをモック）
+                        const fullPath = `${directory}/${path}`;
+                        localStorage.setItem(`capacitor_file_${fullPath}`, data);
+                        
+                        // シミュレーション: 成功レスポンス
+                        return { uri: `file:///android_asset/Documents/${path}` };
+                    },
+                    
+                    async readFile({ path, directory, encoding }) {
+                        console.log('🎭 Mock Filesystem.readFile:', { path, directory, encoding });
+                        const fullPath = `${directory}/${path}`;
+                        const data = localStorage.getItem(`capacitor_file_${fullPath}`);
+                        if (data === null) {
+                            throw new Error(`File not found: ${fullPath}`);
+                        }
+                        return { data };
+                    },
+                    
+                    async mkdir({ path, directory, recursive }) {
+                        console.log('🎭 Mock Filesystem.mkdir:', { path, directory, recursive });
+                        // ディレクトリ作成をモック（常に成功）
+                        return {};
+                    },
+                    
+                    async getUri({ path, directory }) {
+                        console.log('🎭 Mock Filesystem.getUri:', { path, directory });
+                        return { uri: `file:///android_asset/${directory}/${path}` };
+                    },
+                    
+                    async checkPermissions() {
+                        console.log('🎭 Mock Filesystem.checkPermissions');
+                        return { publicStorage: 'granted' };
+                    },
+                    
+                    async requestPermissions() {
+                        console.log('🎭 Mock Filesystem.requestPermissions');
+                        return { publicStorage: 'granted' };
+                    }
+                }
+            },
+            
+            // Directory定数
+            Directory: {
+                Documents: 'DOCUMENTS',
+                Data: 'DATA',
+                Cache: 'CACHE',
+                External: 'EXTERNAL',
+                ExternalStorage: 'EXTERNAL_STORAGE'
+            },
+            
+            // Encoding定数
+            Encoding: {
+                UTF8: 'utf8',
+                ASCII: 'ascii',
+                UTF16: 'utf16'
+            }
+        };
+        
+        console.log('✅ APK環境のCapacitorモック完了');
+        console.log('🔍 Capacitorオブジェクト:', window.Capacitor);
+    </script>
+    
+    <!-- 元のアプリをロード -->
+    <div class="app-container">
+        <!-- ヘッダー -->
+        <header class="app-header">
+            <div class="header-title">
+                <h1>🎭 ラミオペ・ダッシュボード (APK テスト)</h1>
+                <div class="current-time" id="currentTime"></div>
+            </div>
+            <div class="header-actions">
+                <button class="header-btn" onclick="dashboard.showSettings()">⚙️ 設定</button>
+            </div>
+        </header>
+
+        <!-- メイン統合ダッシュボード -->
+        <main id="main-content" class="main-dashboard">
+            
+            <!-- APKテスト専用コントロール -->
+            <section class="card" style="background: #f8f9fa; border: 2px dashed #6c757d;">
+                <h3>🎭 APK仮想テスト専用</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                    <button class="btn btn-primary" onclick="testCapacitorDetection()">📱 Capacitor検出テスト</button>
+                    <button class="btn btn-primary" onclick="testDataSave()">💾 データ保存テスト</button>
+                    <button class="btn btn-primary" onclick="testBackupFunction()">📤 バックアップテスト</button>
+                    <button class="btn btn-primary" onclick="testCsvExport()">📋 CSVエクスポートテスト</button>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn btn-secondary" onclick="showStoredFiles()">📁 保存ファイル確認</button>
+                    <button class="btn btn-secondary" onclick="clearSimulationData()">🗑️ シミュレーションデータクリア</button>
+                </div>
+            </section>
+            
+            <!-- 時間表示エリア（3カラム構成） -->
+            <section class="time-display-grid card">
+                <div class="time-column">
+                    <div class="time-label">開始時刻</div>
+                    <div class="time-value editable" id="workStartTime" onclick="dashboard.editStartTime()">--:--</div>
+                    <div class="time-action">手動設定可</div>
+                </div>
+                
+                <div class="time-column primary">
+                    <div class="time-label">最終終了予定</div>
+                    <div class="time-value" id="finalFinishTime">--:--</div>
+                    <div class="time-status" id="finishStatus">業務開始前</div>
+                </div>
+                
+                <div class="time-column">
+                    <div class="time-label">本日の目標</div>
+                    <div class="time-value editable" id="targetEndTime" onclick="dashboard.editTargetTime()">17:00</div>
+                    <div class="time-action">定時/残業切替</div>
+                </div>
+            </section>
+
+            <!-- 操作エリア -->
+            <section class="operation-area">
+                
+                <!-- 時間調整ボタン -->
+                <div class="time-controls">
+                    <h4>時間管理</h4>
+                    <div class="time-btn-grid">
+                        <button class="time-btn" onclick="dashboard.startWork()">業務開始</button>
+                        <button class="time-btn" onclick="dashboard.addLunchBreak()">昼休み追加</button>
+                        <button class="time-btn" onclick="dashboard.addManualTime()">手動で時間追加</button>
+                        <button class="time-btn" onclick="dashboard.addExchangeTime()">交換時間追加</button>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- ジョブリスト表示エリア -->
+            <section class="job-list-area">
+                <div class="job-list-header">
+                    <h3>ジョブリスト</h3>
+                    <button class="report-btn" onclick="dashboard.showReport()">📊 本日のレポート</button>
+                </div>
+                
+                <div id="jobListContainer" class="job-list-container">
+                    <div class="empty-state">
+                        APK仮想テスト環境<br>
+                        まずは上の「APK仮想テスト専用」ボタンで動作確認してください
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- 設定モーダル（元のHTMLから複製） -->
+        <div id="settingsModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>⚙️ ユーザー設定 (APKテスト)</h3>
+                    <button class="modal-close" onclick="dashboard.hideSettings()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-section">
+                        <h4>データ管理 (APKテスト)</h4>
+                        <div class="form-group">
+                            <button class="btn btn-primary" id="backup-data-btn" onclick="dashboard.backupData()">📤 進捗をバックアップ (APKテスト)</button>
+                            <button class="btn btn-secondary" id="restore-data-btn" onclick="dashboard.triggerRestore()">📥 バックアップから復元</button>
+                            <input type="file" id="restore-file-input" accept=".json" style="display: none;" onchange="dashboard.restoreData(event)">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- レポートモーダル -->
+        <div id="reportModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>📊 本日の作業レポート (APKテスト)</h3>
+                    <button class="modal-close" onclick="dashboard.hideReport()">&times;</button>
+                </div>
+                <div class="modal-body" id="reportContent">
+                    <div style="margin-top: 20px;">
+                        <button id="exportCsvBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">📋 業務記録をCSV保存 (APKテスト)</button>
+                        <button id="clearJobsBtn" class="btn btn-danger" style="width: 100%;">🗑️ 本日のジョブを消去</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    
+    <footer style="text-align: center; padding: 10px; border-top: 1px solid #ccc; font-size: 12px; color: #888;">
+        🎭 APK仮想テスト環境 - バンドル済みCapacitorプラグインシミュレーション
+    </footer>
+
+    <!-- APKテスト用の追加スクリプト -->
+    <script>
+        // APKテスト専用関数
+        function testCapacitorDetection() {
+            console.log('🧪 Capacitor検出テスト開始');
+            console.log('- Capacitor存在:', typeof window.Capacitor !== 'undefined');
+            console.log('- isNativePlatform:', window.Capacitor?.isNativePlatform?.());
+            console.log('- Plugins:', Object.keys(window.Capacitor?.Plugins || {}));
+            alert(`Capacitor検出結果:\n- 存在: ${typeof window.Capacitor !== 'undefined'}\n- ネイティブ: ${window.Capacitor?.isNativePlatform?.()}\n- プラグイン: ${Object.keys(window.Capacitor?.Plugins || {}).join(', ')}`);
+        }
+
+        function testDataSave() {
+            console.log('🧪 データ保存テスト開始');
+            if (window.dashboard) {
+                dashboard.saveData();
+                alert('データ保存テスト完了\nコンソールでログを確認してください');
+            } else {
+                alert('Dashboard未初期化');
+            }
+        }
+
+        function testBackupFunction() {
+            console.log('🧪 バックアップ機能テスト開始');
+            if (window.dashboard) {
+                dashboard.backupData();
+            } else {
+                alert('Dashboard未初期化');
+            }
+        }
+
+        function testCsvExport() {
+            console.log('🧪 CSVエクスポートテスト開始');
+            if (window.dashboard) {
+                dashboard.exportDataAsCsv();
+            } else {
+                alert('Dashboard未初期化');
+            }
+        }
+
+        function showStoredFiles() {
+            console.log('🧪 保存ファイル確認');
+            const files = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('capacitor_file_')) {
+                    const fileName = key.replace('capacitor_file_', '');
+                    const size = localStorage.getItem(key).length;
+                    files.push(`${fileName} (${size}文字)`);
+                }
+            }
+            
+            if (files.length === 0) {
+                alert('保存されたファイルはありません');
+            } else {
+                alert(`保存ファイル (${files.length}個):\n${files.join('\n')}`);
+            }
+            
+            console.log('📁 保存ファイル一覧:', files);
+        }
+
+        function clearSimulationData() {
+            if (confirm('シミュレーションデータをすべてクリアしますか？')) {
+                const keys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key.startsWith('capacitor_')) {
+                        keys.push(key);
+                    }
+                }
+                keys.forEach(key => localStorage.removeItem(key));
+                alert(`${keys.length}個のシミュレーションデータをクリアしました`);
+                console.log('🗑️ クリアしたデータ:', keys);
+            }
+        }
+    </script>
+
+    <!-- 元のJavaScriptをロード -->
+    <script src="script.js"></script>
+</body>
+</html>
