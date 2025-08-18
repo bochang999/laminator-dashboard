@@ -217,10 +217,6 @@ jobs:
           echo "SIGNING_MODE=ver7-simplified" >> $GITHUB_ENV
           cd ..
 
-      - name: Skip Golden Gradle Template (Not Needed for Capacitor Official Signing)
-        run: |
-          echo "ℹ️ Skipping golden template - using Capacitor official signing configuration instead..."
-          echo "✅ Template step skipped for Capacitor methodology."
 
       - name: Configure Build Gradle for Ver.7 Simplified Signing
         run: |
