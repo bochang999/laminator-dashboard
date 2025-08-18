@@ -6,70 +6,204 @@ let indexedDBSupported = false;
 
 // Capacitor環境判定とプラグイン初期化
 async function initializeCapacitor() {
+    console.log('🔄 Capacitor環境判定を開始...');
+    console.log('🔍 環境情報:', {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        hasCapacitor: typeof window.Capacitor !== 'undefined',
+        isNativePlatform: window.Capacitor ? window.Capacitor.isNativePlatform : false,
+        isAndroid: /Android/.test(navigator.userAgent),
+        locationProtocol: window.location.protocol
+    });
+    
     try {
-        console.log('Capacitor環境判定を開始...');
-        
-        // Capacitor本体の存在確認
-        if (typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform) {
-            console.log('ネイティブプラットフォーム環境を検出');
-            isCapacitorEnvironment = true;
+        // Capacitor本体の存在確認と詳細判定
+        if (typeof window.Capacitor !== 'undefined') {
+            console.log('✅ Capacitorオブジェクト検出');
             
-            // 動的インポートでプラグインを読み込み
-            try {
-                const { Preferences } = await import('https://unpkg.com/@capacitor/preferences@7/dist/esm/index.js');
-                const { Filesystem, Directory, Encoding } = await import('https://unpkg.com/@capacitor/filesystem@7/dist/esm/index.js');
+            // ネイティブプラットフォーム判定（複数の方法で確認）
+            const isNative = window.Capacitor.isNativePlatform || 
+                            window.Capacitor.isNative || 
+                            window.location.protocol === 'capacitor:' ||
+                            /Android/.test(navigator.userAgent);
+            
+            if (isNative) {
+                console.log('✅ ネイティブプラットフォーム環境を検出');
+                isCapacitorEnvironment = true;
                 
-                CapacitorPreferences = Preferences;
-                CapacitorFilesystem = Filesystem;
-                
-                console.log('✅ Capacitor Preferences & Filesystem プラグイン初期化成功');
-                
-                // 保存テスト実行
-                await testCapacitorPreferences();
-                
-            } catch (pluginError) {
-                console.error('❌ Capacitorプラグイン読み込みエラー:', pluginError);
+                // 動的インポートでプラグインを読み込み
+                try {
+                    console.log('🔄 Capacitorプラグイン読み込み開始...');
+                    
+                    const preferencesStartTime = Date.now();
+                    const { Preferences } = await import('https://unpkg.com/@capacitor/preferences@7/dist/esm/index.js');
+                    const preferencesLoadTime = Date.now() - preferencesStartTime;
+                    
+                    const filesystemStartTime = Date.now();
+                    const { Filesystem, Directory, Encoding } = await import('https://unpkg.com/@capacitor/filesystem@7/dist/esm/index.js');
+                    const filesystemLoadTime = Date.now() - filesystemStartTime;
+                    
+                    CapacitorPreferences = Preferences;
+                    CapacitorFilesystem = Filesystem;
+                    
+                    console.log('✅ Capacitor Preferences & Filesystem プラグイン初期化成功');
+                    console.log(`⏱️ 読み込み時間: Preferences ${preferencesLoadTime}ms, Filesystem ${filesystemLoadTime}ms`);
+                    
+                    // 保存テスト実行
+                    await testCapacitorPreferences();
+                    
+                } catch (pluginError) {
+                    console.error('❌ Capacitorプラグイン読み込みエラー:', pluginError);
+                    console.error('🔍 プラグインエラー詳細:', {
+                        name: pluginError.name,
+                        message: pluginError.message,
+                        stack: pluginError.stack
+                    });
+                    
+                    // プラグイン読み込み失敗時はWeb環境として動作
+                    isCapacitorEnvironment = false;
+                    console.log('⚠️ プラグイン読み込み失敗 - Web環境モードに切り替え');
+                }
+            } else {
+                console.log('ℹ️ Capacitorは存在するがWebプラットフォーム環境');
                 isCapacitorEnvironment = false;
             }
         } else {
-            console.log('Web環境を検出 - localStorage fallbackを使用');
+            console.log('ℹ️ Capacitorオブジェクト未検出 - Web環境');
             isCapacitorEnvironment = false;
         }
     } catch (error) {
-        console.error('❌ Capacitor初期化エラー:', error);
+        console.error('❌ Capacitor初期化中の予期しないエラー:', error);
+        console.error('🔍 初期化エラー詳細:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+        });
         isCapacitorEnvironment = false;
+    }
+    
+    // 最終的な環境判定結果
+    console.log(`📱 最終判定: ${isCapacitorEnvironment ? 'Capacitor APK環境' : 'Web環境'}`);
+    
+    if (!isCapacitorEnvironment) {
+        console.log('🔄 Web環境用のフォールバック初期化...');
+        // Web環境では localStorage と IndexedDB を使用
     }
 }
 
 // Capacitor Preferences動作テスト
 async function testCapacitorPreferences() {
-    if (!CapacitorPreferences) return;
+    if (!CapacitorPreferences) {
+        console.warn('⚠️ CapacitorPreferencesが未初期化のためテストをスキップ');
+        return;
+    }
+    
+    const testKey = 'capacitor_test_key_' + Date.now();
+    const testValue = JSON.stringify({
+        timestamp: Date.now(),
+        test: 'Capacitor機能テスト',
+        unicode: '日本語テスト',
+        number: 12345,
+        boolean: true,
+        array: [1, 2, 3],
+        object: { nested: 'value' }
+    });
     
     try {
-        const testKey = 'capacitor_test_key';
-        const testValue = 'test_success_' + Date.now();
+        console.log('🔄 Capacitor Preferences機能テスト開始...');
         
-        // 書き込みテスト
+        // 1. 書き込みテスト
+        const writeStartTime = Date.now();
         await CapacitorPreferences.set({
             key: testKey,
             value: testValue
         });
+        const writeTime = Date.now() - writeStartTime;
+        console.log(`✅ 書き込みテスト成功 (${writeTime}ms)`);
         
-        // 読み込みテスト
+        // 2. 読み込みテスト
+        const readStartTime = Date.now();
         const result = await CapacitorPreferences.get({ key: testKey });
+        const readTime = Date.now() - readStartTime;
         
-        if (result.value === testValue) {
-            console.log('✅ Capacitor Preferences 読み書きテスト成功');
+        if (result && result.value === testValue) {
+            console.log(`✅ 読み込みテスト成功 (${readTime}ms)`);
+            console.log(`📊 テストデータサイズ: ${testValue.length}バイト`);
             
-            // テストデータクリーンアップ
+            // 3. JSON解析テスト
+            try {
+                const parsedData = JSON.parse(result.value);
+                if (parsedData.timestamp && parsedData.test) {
+                    console.log('✅ JSON解析テスト成功');
+                } else {
+                    throw new Error('JSON構造が期待値と異なる');
+                }
+            } catch (jsonError) {
+                console.error('❌ JSON解析テスト失敗:', jsonError);
+                throw jsonError;
+            }
+            
+            // 4. キー一覧テスト
+            try {
+                const keysResult = await CapacitorPreferences.keys();
+                if (keysResult && keysResult.keys && Array.isArray(keysResult.keys)) {
+                    console.log(`✅ キー一覧テスト成功 (${keysResult.keys.length}個のキー)`);
+                    console.log('📋 現在のキー:', keysResult.keys.slice(0, 5)); // 最初の5個のみ表示
+                } else {
+                    console.warn('⚠️ キー一覧の取得に問題がある可能性');
+                }
+            } catch (keysError) {
+                console.warn('⚠️ キー一覧テスト失敗 (継続可能):', keysError);
+            }
+            
+            // 5. 削除テスト
+            const deleteStartTime = Date.now();
             await CapacitorPreferences.remove({ key: testKey });
+            const deleteTime = Date.now() - deleteStartTime;
+            
+            // 削除確認
+            const deleteVerification = await CapacitorPreferences.get({ key: testKey });
+            if (!deleteVerification.value) {
+                console.log(`✅ 削除テスト成功 (${deleteTime}ms)`);
+            } else {
+                console.warn('⚠️ 削除テストで期待値と異なる結果');
+            }
+            
+            console.log('🎉 Capacitor Preferences全機能テスト完了');
+            
         } else {
-            console.error('❌ Capacitor Preferences テスト失敗: 読み込み値が不一致');
+            const actualValue = result ? result.value : null;
+            console.error('❌ 読み込み値検証失敗:');
+            console.error('期待値サイズ:', testValue.length);
+            console.error('実際値サイズ:', actualValue ? actualValue.length : 0);
+            console.error('期待値（最初の100文字）:', testValue.substring(0, 100));
+            console.error('実際値（最初の100文字）:', actualValue ? actualValue.substring(0, 100) : 'null');
+            
             isCapacitorEnvironment = false;
+            throw new Error('Capacitor Preferences データ整合性テスト失敗');
         }
     } catch (error) {
         console.error('❌ Capacitor Preferences テストエラー:', error);
+        console.error('🔍 テストエラー詳細:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+            testKey: testKey,
+            testValueSize: testValue.length
+        });
+        
+        // テスト失敗時はCapacitor環境を無効化
         isCapacitorEnvironment = false;
+        
+        // クリーンアップを試行
+        try {
+            await CapacitorPreferences.remove({ key: testKey });
+            console.log('🧹 テストデータクリーンアップ完了');
+        } catch (cleanupError) {
+            console.warn('⚠️ テストデータクリーンアップ失敗:', cleanupError);
+        }
+        
+        throw error; // エラーを再スロー
     }
 }
 
@@ -166,109 +300,420 @@ async function testCapacitorPreferencesAdvanced() {
 
 // ===== IndexedDB フォールバック システム =====
 
-// IndexedDB初期化とサポート確認
+// IndexedDB初期化とサポート確認（Ver.5.0エラーハンドリング強化版）
 async function initializeIndexedDB() {
     try {
-        console.log('🔄 IndexedDBサポート確認...');
+        const startTime = performance.now();
+        console.log('🔄 IndexedDB初期化開始...');
+        console.log('🔍 環境情報:', {
+            indexedDBSupport: !!window.indexedDB,
+            userAgent: navigator.userAgent,
+            isCapacitor: isCapacitorEnvironment,
+            protocol: window.location.protocol
+        });
         
         if (!window.indexedDB) {
-            console.log('❌ IndexedDBはサポートされていません');
-            return false;
+            console.log('❌ IndexedDBがサポートされていません');
+            throw new Error('IndexedDB not supported');
         }
         
-        // IndexedDBテスト実行
-        const testRequest = indexedDB.open('laminator_test', 1);
+        // 本格的なIndexedDBテスト実行
+        console.log('🧪 IndexedDB本格テスト開始...');
+        const testDBName = 'laminator_test_' + Date.now();
+        const testRequest = indexedDB.open(testDBName, 1);
         
-        return new Promise((resolve) => {
-            testRequest.onerror = () => {
-                console.log('❌ IndexedDBテスト失敗');
-                resolve(false);
+        return new Promise((resolve, reject) => {
+            let testDB = null;
+            
+            testRequest.onerror = (event) => {
+                const error = event.target.error;
+                console.error('❌ IndexedDBテスト失敗:', error);
+                console.error('エラー詳細:', {
+                    name: error?.name,
+                    message: error?.message,
+                    code: error?.code
+                });
+                reject(error);
             };
             
-            testRequest.onsuccess = (event) => {
-                const db = event.target.result;
-                db.close();
-                indexedDB.deleteDatabase('laminator_test');
-                console.log('✅ IndexedDBサポート確認完了');
-                indexedDBSupported = true;
-                resolve(true);
+            testRequest.onblocked = (event) => {
+                console.warn('⚠️ IndexedDBテストがブロックされました');
+                setTimeout(() => {
+                    reject(new Error('IndexedDB test blocked'));
+                }, 3000);
+            };
+            
+            testRequest.onsuccess = async (event) => {
+                testDB = event.target.result;
+                
+                try {
+                    console.log('🔬 IndexedDB読み書きテスト実行...');
+                    
+                    // 読み書きテスト
+                    const transaction = testDB.transaction(['test'], 'readwrite');
+                    const store = transaction.objectStore('test');
+                    
+                    const testData = {
+                        id: 'test_key',
+                        data: {
+                            timestamp: Date.now(),
+                            test: 'IndexedDB機能テスト',
+                            unicode: '日本語テスト',
+                            complexity: {
+                                array: [1, 2, 3],
+                                nested: { deep: 'value' }
+                            }
+                        }
+                    };
+                    
+                    // 書き込みテスト
+                    const writeRequest = store.put(testData);
+                    
+                    writeRequest.onsuccess = async () => {
+                        console.log('✅ IndexedDB書き込みテスト成功');
+                        
+                        // 読み込みテスト
+                        const readRequest = store.get('test_key');
+                        
+                        readRequest.onsuccess = () => {
+                            const retrievedData = readRequest.result;
+                            
+                            if (retrievedData && retrievedData.data.timestamp === testData.data.timestamp) {
+                                console.log('✅ IndexedDB読み込みテスト成功');
+                                console.log('📊 テストデータ検証完了');
+                                
+                                // クリーンアップ
+                                testDB.close();
+                                const deleteRequest = indexedDB.deleteDatabase(testDBName);
+                                
+                                deleteRequest.onsuccess = () => {
+                                    const endTime = performance.now();
+                                    const duration = endTime - startTime;
+                                    
+                                    console.log(`✅ IndexedDB初期化完了 (${duration.toFixed(2)}ms)`);
+                                    console.log('🎉 IndexedDB完全機能テスト成功');
+                                    indexedDBSupported = true;
+                                    resolve(true);
+                                };
+                                
+                                deleteRequest.onerror = () => {
+                                    console.warn('⚠️ テストDBクリーンアップ失敗（継続可能）');
+                                    indexedDBSupported = true;
+                                    resolve(true);
+                                };
+                            } else {
+                                console.error('❌ IndexedDBデータ整合性テスト失敗');
+                                testDB.close();
+                                reject(new Error('IndexedDB data integrity test failed'));
+                            }
+                        };
+                        
+                        readRequest.onerror = (readError) => {
+                            console.error('❌ IndexedDB読み込みテスト失敗:', readError);
+                            testDB.close();
+                            reject(readError);
+                        };
+                    };
+                    
+                    writeRequest.onerror = (writeError) => {
+                        console.error('❌ IndexedDB書き込みテスト失敗:', writeError);
+                        testDB.close();
+                        reject(writeError);
+                    };
+                    
+                } catch (testError) {
+                    console.error('❌ IndexedDB機能テストエラー:', testError);
+                    if (testDB) testDB.close();
+                    reject(testError);
+                }
             };
             
             testRequest.onupgradeneeded = (event) => {
                 const db = event.target.result;
-                db.createObjectStore('test', { keyPath: 'id' });
+                
+                try {
+                    console.log('🔧 IndexedDBテスト用スキーマ作成...');
+                    
+                    if (!db.objectStoreNames.contains('test')) {
+                        const store = db.createObjectStore('test', { keyPath: 'id' });
+                        console.log('✅ テスト用オブジェクトストア作成完了');
+                    }
+                    
+                } catch (schemaError) {
+                    console.error('❌ IndexedDBテスト用スキーマ作成エラー:', schemaError);
+                    reject(schemaError);
+                }
             };
         });
         
     } catch (error) {
         console.error('❌ IndexedDB初期化エラー:', error);
-        return false;
+        console.error('🔍 初期化エラー詳細:', {
+            name: error?.name,
+            message: error?.message,
+            stack: error?.stack
+        });
+        throw error;
     }
 }
 
-// IndexedDBでデータ保存
+// IndexedDBでデータ保存（Ver.5.0エラーハンドリング強化版）
 async function saveToIndexedDB(key, value) {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open('laminator_dashboard', 1);
-        
-        request.onerror = () => reject(request.error);
-        
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            if (!db.objectStoreNames.contains('data')) {
-                db.createObjectStore('data', { keyPath: 'key' });
-            }
-        };
-        
-        request.onsuccess = (event) => {
-            const db = event.target.result;
-            const transaction = db.transaction(['data'], 'readwrite');
-            const store = transaction.objectStore('data');
+        try {
+            const startTime = performance.now();
+            console.log(`🔄 IndexedDB保存開始: ${key}`);
+            console.log(`📊 保存データサイズ: ${typeof value === 'string' ? value.length : JSON.stringify(value).length}バイト`);
             
-            const saveRequest = store.put({ key: key, value: value, timestamp: Date.now() });
+            const request = indexedDB.open('laminator_dashboard', 1);
             
-            saveRequest.onsuccess = () => {
-                console.log('✅ IndexedDBに保存成功:', key);
-                resolve();
+            request.onerror = (event) => {
+                const error = event.target.error;
+                console.error(`❌ IndexedDB保存エラー (${key}):`, error);
+                console.error('保存エラー詳細:', {
+                    name: error?.name,
+                    message: error?.message,
+                    code: error?.code,
+                    key: key,
+                    dataType: typeof value
+                });
+                reject(error);
             };
             
-            saveRequest.onerror = () => reject(saveRequest.error);
-        };
-    });
-}
-
-// IndexedDBからデータ読み込み
-async function loadFromIndexedDB(key) {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open('laminator_dashboard', 1);
-        
-        request.onerror = () => reject(request.error);
-        
-        request.onsuccess = (event) => {
-            const db = event.target.result;
+            request.onblocked = (event) => {
+                console.warn(`⚠️ IndexedDB保存がブロックされました (${key})`);
+                setTimeout(() => {
+                    reject(new Error(`IndexedDB save blocked for key: ${key}`));
+                }, 5000);
+            };
             
-            if (!db.objectStoreNames.contains('data')) {
-                resolve(null);
-                return;
-            }
-            
-            const transaction = db.transaction(['data'], 'readonly');
-            const store = transaction.objectStore('data');
-            const getRequest = store.get(key);
-            
-            getRequest.onsuccess = () => {
-                const result = getRequest.result;
-                if (result) {
-                    console.log('✅ IndexedDBから読み込み成功:', key);
-                    resolve(result.value);
-                } else {
-                    console.log('ℹ️ IndexedDB: キーが見つかりません:', key);
-                    resolve(null);
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                
+                try {
+                    console.log('🔧 IndexedDBスキーマ更新中...');
+                    
+                    if (!db.objectStoreNames.contains('data')) {
+                        const store = db.createObjectStore('data', { keyPath: 'key' });
+                        console.log('✅ dataオブジェクトストア作成完了');
+                    }
+                    
+                    // バックアップ用ストアの追加
+                    if (!db.objectStoreNames.contains('backup')) {
+                        const backupStore = db.createObjectStore('backup', { keyPath: 'id' });
+                        console.log('✅ backupオブジェクトストア作成完了');
+                    }
+                    
+                } catch (schemaError) {
+                    console.error('❌ IndexedDBスキーマ更新エラー:', schemaError);
+                    reject(schemaError);
                 }
             };
             
-            getRequest.onerror = () => reject(getRequest.error);
-        };
+            request.onsuccess = (event) => {
+                const db = event.target.result;
+                
+                try {
+                    // データベース状態の検証
+                    if (!db.objectStoreNames.contains('data')) {
+                        const error = new Error('Required object store "data" not found');
+                        console.error('❌ 必要なオブジェクトストアが見つかりません');
+                        db.close();
+                        reject(error);
+                        return;
+                    }
+                    
+                    const transaction = db.transaction(['data'], 'readwrite');
+                    const store = transaction.objectStore('data');
+                    
+                    // データ検証
+                    const dataToSave = {
+                        key: key,
+                        value: value,
+                        timestamp: Date.now(),
+                        size: typeof value === 'string' ? value.length : JSON.stringify(value).length,
+                        checksum: generateSimpleChecksum(value)
+                    };
+                    
+                    // トランザクションレベルのエラーハンドリング
+                    transaction.onerror = (transactionError) => {
+                        console.error(`❌ IndexedDBトランザクションエラー (${key}):`, transactionError);
+                        db.close();
+                        reject(transactionError);
+                    };
+                    
+                    transaction.onabort = (abortEvent) => {
+                        console.error(`❌ IndexedDBトランザクション中止 (${key}):`, abortEvent);
+                        db.close();
+                        reject(new Error(`Transaction aborted for key: ${key}`));
+                    };
+                    
+                    const saveRequest = store.put(dataToSave);
+                    
+                    saveRequest.onsuccess = () => {
+                        const endTime = performance.now();
+                        const duration = endTime - startTime;
+                        
+                        console.log(`✅ IndexedDB保存成功: ${key} (${duration.toFixed(2)}ms)`);
+                        console.log(`📊 保存済みデータ: ${dataToSave.size}バイト, チェックサム: ${dataToSave.checksum}`);
+                        
+                        db.close();
+                        resolve({
+                            success: true,
+                            key: key,
+                            size: dataToSave.size,
+                            duration: duration,
+                            timestamp: dataToSave.timestamp
+                        });
+                    };
+                    
+                    saveRequest.onerror = (saveError) => {
+                        console.error(`❌ IndexedDB保存操作エラー (${key}):`, saveError);
+                        db.close();
+                        reject(saveError);
+                    };
+                    
+                } catch (operationError) {
+                    console.error(`❌ IndexedDB保存操作準備エラー (${key}):`, operationError);
+                    db.close();
+                    reject(operationError);
+                }
+            };
+            
+        } catch (initError) {
+            console.error(`❌ IndexedDB保存初期化エラー (${key}):`, initError);
+            reject(initError);
+        }
+    });
+}
+
+// 簡易チェックサム生成（データ整合性確認用）
+function generateSimpleChecksum(data) {
+    const str = typeof data === 'string' ? data : JSON.stringify(data);
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // 32bit整数に変換
+    }
+    return Math.abs(hash).toString(16);
+}
+
+// IndexedDBからデータ読み込み（Ver.5.0エラーハンドリング強化版）
+async function loadFromIndexedDB(key) {
+    return new Promise((resolve, reject) => {
+        try {
+            const startTime = performance.now();
+            console.log(`🔄 IndexedDB読み込み開始: ${key}`);
+            
+            const request = indexedDB.open('laminator_dashboard', 1);
+            
+            request.onerror = (event) => {
+                const error = event.target.error;
+                console.error(`❌ IndexedDB読み込みエラー (${key}):`, error);
+                console.error('読み込みエラー詳細:', {
+                    name: error?.name,
+                    message: error?.message,
+                    code: error?.code,
+                    key: key
+                });
+                reject(error);
+            };
+            
+            request.onblocked = (event) => {
+                console.warn(`⚠️ IndexedDB読み込みがブロックされました (${key})`);
+                setTimeout(() => {
+                    reject(new Error(`IndexedDB load blocked for key: ${key}`));
+                }, 5000);
+            };
+            
+            request.onsuccess = (event) => {
+                const db = event.target.result;
+                
+                try {
+                    // データベース状態の検証
+                    if (!db.objectStoreNames.contains('data')) {
+                        console.log(`ℹ️ IndexedDB: dataストアが存在しません (${key})`);
+                        db.close();
+                        resolve(null);
+                        return;
+                    }
+                    
+                    const transaction = db.transaction(['data'], 'readonly');
+                    const store = transaction.objectStore('data');
+                    
+                    // トランザクションレベルのエラーハンドリング
+                    transaction.onerror = (transactionError) => {
+                        console.error(`❌ IndexedDB読み込みトランザクションエラー (${key}):`, transactionError);
+                        db.close();
+                        reject(transactionError);
+                    };
+                    
+                    transaction.onabort = (abortEvent) => {
+                        console.error(`❌ IndexedDB読み込みトランザクション中止 (${key}):`, abortEvent);
+                        db.close();
+                        reject(new Error(`Read transaction aborted for key: ${key}`));
+                    };
+                    
+                    const getRequest = store.get(key);
+                    
+                    getRequest.onsuccess = () => {
+                        const result = getRequest.result;
+                        const endTime = performance.now();
+                        const duration = endTime - startTime;
+                        
+                        if (result) {
+                            console.log(`✅ IndexedDB読み込み成功: ${key} (${duration.toFixed(2)}ms)`);
+                            console.log(`📊 読み込みデータ: ${result.size || '不明'}バイト, チェックサム: ${result.checksum || '不明'}`);
+                            
+                            // データ整合性チェック（チェックサムがある場合）
+                            if (result.checksum) {
+                                const currentChecksum = generateSimpleChecksum(result.value);
+                                if (currentChecksum !== result.checksum) {
+                                    console.warn(`⚠️ データ整合性警告 (${key}): チェックサムが一致しません`);
+                                    console.warn(`期待値: ${result.checksum}, 実際値: ${currentChecksum}`);
+                                } else {
+                                    console.log(`✅ データ整合性確認完了 (${key})`);
+                                }
+                            }
+                            
+                            // 古いデータ形式への対応
+                            const value = result.value !== undefined ? result.value : result;
+                            
+                            db.close();
+                            resolve({
+                                data: value,
+                                metadata: {
+                                    timestamp: result.timestamp,
+                                    size: result.size,
+                                    checksum: result.checksum,
+                                    loadDuration: duration
+                                }
+                            });
+                        } else {
+                            console.log(`ℹ️ IndexedDB: キーが見つかりません (${key}) (${duration.toFixed(2)}ms)`);
+                            db.close();
+                            resolve(null);
+                        }
+                    };
+                    
+                    getRequest.onerror = (loadError) => {
+                        console.error(`❌ IndexedDB読み込み操作エラー (${key}):`, loadError);
+                        db.close();
+                        reject(loadError);
+                    };
+                    
+                } catch (operationError) {
+                    console.error(`❌ IndexedDB読み込み操作準備エラー (${key}):`, operationError);
+                    db.close();
+                    reject(operationError);
+                }
+            };
+            
+        } catch (initError) {
+            console.error(`❌ IndexedDB読み込み初期化エラー (${key}):`, initError);
+            reject(initError);
+        }
     });
 }
 
@@ -1934,175 +2379,363 @@ class LaminatorDashboard {
             timeSettings: this.timeSettings
         };
         
-        const dataString = JSON.stringify(data);
+        let dataString;
+        try {
+            dataString = JSON.stringify(data);
+        } catch (serializationError) {
+            console.error('❌ データシリアライズエラー:', serializationError);
+            this.showToast('データの準備中にエラーが発生しました', 'error');
+            return;
+        }
+        
         const dataKey = 'laminator_dashboard_v3';
+        const dataSizeKB = Math.round(dataString.length / 1024 * 100) / 100;
         
         console.log('🔄 データ保存開始...複数方式で試行');
+        console.log(`📊 保存予定データサイズ: ${dataSizeKB}KB`);
+        
+        let saveAttempts = [];
         
         try {
             // === 方式1: Capacitor Preferences API ===
             if (isCapacitorEnvironment && CapacitorPreferences) {
-                console.log('🔄 方式1: Capacitor Preferences APIでデータ保存...');
-                
-                await CapacitorPreferences.set({
-                    key: dataKey,
-                    value: dataString
-                });
-                
-                // 保存確認のための読み戻しテスト
-                const verification = await CapacitorPreferences.get({ key: dataKey });
-                if (verification.value === dataString) {
-                    console.log('✅ 方式1成功: Capacitor Preferencesに正常保存完了');
-                    console.log(`📊 保存データサイズ: ${Math.round(dataString.length / 1024 * 100) / 100}KB`);
-                    return; // 成功時は終了
-                } else {
-                    throw new Error('Capacitor Preferences保存データの検証に失敗');
+                try {
+                    console.log('🔄 方式1: Capacitor Preferences APIでデータ保存...');
+                    
+                    const saveStartTime = Date.now();
+                    await CapacitorPreferences.set({
+                        key: dataKey,
+                        value: dataString
+                    });
+                    const saveTime = Date.now() - saveStartTime;
+                    
+                    // 保存確認のための読み戻しテスト
+                    const verificationStartTime = Date.now();
+                    const verification = await CapacitorPreferences.get({ key: dataKey });
+                    const verificationTime = Date.now() - verificationStartTime;
+                    
+                    if (verification.value === dataString) {
+                        console.log('✅ 方式1成功: Capacitor Preferencesに正常保存完了');
+                        console.log(`⏱️ 保存時間: ${saveTime}ms, 検証時間: ${verificationTime}ms`);
+                        saveAttempts.push({ method: 'Capacitor Preferences', success: true, error: null });
+                        return; // 成功時は終了
+                    } else {
+                        throw new Error(`保存データ検証失敗: 元サイズ${dataString.length}, 読み戻しサイズ${verification.value ? verification.value.length : 0}`);
+                    }
+                } catch (capacitorError) {
+                    console.warn('⚠️ 方式1失敗: Capacitor Preferences API:', capacitorError);
+                    saveAttempts.push({ method: 'Capacitor Preferences', success: false, error: capacitorError.message });
                 }
+            } else {
+                console.log('ℹ️ 方式1スキップ: Capacitor環境未検出');
+                saveAttempts.push({ method: 'Capacitor Preferences', success: false, error: 'Capacitor環境未検出' });
             }
             
             // === 方式2: IndexedDB フォールバック ===
             if (indexedDBSupported) {
-                console.log('🔄 方式2: IndexedDBでデータ保存...');
-                
-                await saveToIndexedDB(dataKey, dataString);
-                
-                // IndexedDB保存確認
-                const indexedDBVerification = await loadFromIndexedDB(dataKey);
-                if (indexedDBVerification === dataString) {
-                    console.log('✅ 方式2成功: IndexedDBに正常保存完了');
-                    console.log(`📊 保存データサイズ: ${Math.round(dataString.length / 1024 * 100) / 100}KB`);
-                    return; // 成功時は終了
-                } else {
-                    throw new Error('IndexedDB保存データの検証に失敗');
+                try {
+                    console.log('🔄 方式2: IndexedDBでデータ保存...');
+                    
+                    const idbSaveStartTime = Date.now();
+                    await saveToIndexedDB(dataKey, dataString);
+                    const idbSaveTime = Date.now() - idbSaveStartTime;
+                    
+                    // IndexedDB保存確認
+                    const idbVerificationStartTime = Date.now();
+                    const indexedDBVerification = await loadFromIndexedDB(dataKey);
+                    const idbVerificationTime = Date.now() - idbVerificationStartTime;
+                    
+                    if (indexedDBVerification === dataString) {
+                        console.log('✅ 方式2成功: IndexedDBに正常保存完了');
+                        console.log(`⏱️ 保存時間: ${idbSaveTime}ms, 検証時間: ${idbVerificationTime}ms`);
+                        saveAttempts.push({ method: 'IndexedDB', success: true, error: null });
+                        return; // 成功時は終了
+                    } else {
+                        throw new Error(`IndexedDB保存データ検証失敗: 元サイズ${dataString.length}, 読み戻しサイズ${indexedDBVerification ? indexedDBVerification.length : 0}`);
+                    }
+                } catch (indexedDBError) {
+                    console.warn('⚠️ 方式2失敗: IndexedDB:', indexedDBError);
+                    saveAttempts.push({ method: 'IndexedDB', success: false, error: indexedDBError.message });
                 }
+            } else {
+                console.log('ℹ️ 方式2スキップ: IndexedDBサポートなし');
+                saveAttempts.push({ method: 'IndexedDB', success: false, error: 'IndexedDBサポートなし' });
             }
             
             // === 方式3: localStorage緊急フォールバック ===
-            console.log('🔄 方式3: localStorage緊急フォールバック...');
-            localStorage.setItem(dataKey, dataString);
-            
-            // localStorage保存確認
-            const localStorageVerification = localStorage.getItem(dataKey);
-            if (localStorageVerification === dataString) {
-                console.log('✅ 方式3成功: localStorageに正常保存完了');
-                console.log(`📊 保存データサイズ: ${Math.round(dataString.length / 1024 * 100) / 100}KB`);
-                return; // 成功時は終了
+            if (window.localStorage) {
+                try {
+                    console.log('🔄 方式3: localStorage緊急フォールバック...');
+                    
+                    const localSaveStartTime = Date.now();
+                    localStorage.setItem(dataKey, dataString);
+                    const localSaveTime = Date.now() - localSaveStartTime;
+                    
+                    // localStorage保存確認
+                    const localVerificationStartTime = Date.now();
+                    const localStorageVerification = localStorage.getItem(dataKey);
+                    const localVerificationTime = Date.now() - localVerificationStartTime;
+                    
+                    if (localStorageVerification === dataString) {
+                        console.log('✅ 方式3成功: localStorageに正常保存完了');
+                        console.log(`⏱️ 保存時間: ${localSaveTime}ms, 検証時間: ${localVerificationTime}ms`);
+                        saveAttempts.push({ method: 'localStorage', success: true, error: null });
+                        return; // 成功時は終了
+                    } else {
+                        throw new Error(`localStorage保存データ検証失敗: 元サイズ${dataString.length}, 読み戻しサイズ${localStorageVerification ? localStorageVerification.length : 0}`);
+                    }
+                } catch (localStorageError) {
+                    console.error('❌ 方式3失敗: localStorage:', localStorageError);
+                    saveAttempts.push({ method: 'localStorage', success: false, error: localStorageError.message });
+                }
             } else {
-                throw new Error('localStorage保存データの検証に失敗');
+                console.error('❌ 方式3不可: localStorage利用不可');
+                saveAttempts.push({ method: 'localStorage', success: false, error: 'localStorage利用不可' });
             }
             
-        } catch (error) {
-            console.error('❌ 全ての保存方式が失敗:', error);
-            this.showToast('データの保存に失敗しました。アプリを再起動してください。', 'error');
-            
-            // デバッグ情報の出力
-            console.error('🔍 デバッグ情報:');
-            console.error('- Capacitor環境:', isCapacitorEnvironment);
-            console.error('- CapacitorPreferences利用可能:', !!CapacitorPreferences);
-            console.error('- IndexedDBサポート:', indexedDBSupported);
-            console.error('- localStorage利用可能:', !!window.localStorage);
-            console.error('- 保存データサイズ:', dataString.length, 'バイト');
+        } catch (generalError) {
+            console.error('❌ 保存処理中の予期しないエラー:', generalError);
+            saveAttempts.push({ method: 'General', success: false, error: generalError.message });
         }
+        
+        // 全ての保存方式が失敗した場合
+        console.error('❌ 全ての保存方式が失敗しました');
+        console.error('📊 保存試行結果:', saveAttempts);
+        
+        // デバッグ情報の詳細出力
+        console.error('🔍 詳細デバッグ情報:');
+        console.error('- Capacitor環境:', isCapacitorEnvironment);
+        console.error('- CapacitorPreferences利用可能:', !!CapacitorPreferences);
+        console.error('- IndexedDBサポート:', indexedDBSupported);
+        console.error('- localStorage利用可能:', !!window.localStorage);
+        console.error('- 保存データサイズ:', dataString.length, 'バイト (', dataSizeKB, 'KB)');
+        console.error('- filmSessions数:', this.filmSessions.length);
+        console.error('- 総ジョブ数:', this.filmSessions.reduce((total, session) => total + (session.jobs ? session.jobs.length : 0), 0));
+        
+        this.showToast(`データの保存に失敗しました (${saveAttempts.length}回試行). アプリを再起動してください。`, 'error');
     }
 
     // データ読み込み (Capacitor Preferences対応版)
     async loadData() {
+        const dataKey = 'laminator_dashboard_v3';
+        let rawData = null;
+        let loadMethod = '不明';
+        
+        console.log('🔄 データ読み込み開始...複数方式で試行');
+        
         try {
-            let rawData = null;
-            const dataKey = 'laminator_dashboard_v3';
-            
+            // === 方式1: Capacitor Preferences API ===
             if (isCapacitorEnvironment && CapacitorPreferences) {
-                // APK環境: Capacitor Preferences API使用
-                console.log('🔄 Capacitor Preferences APIからデータ読み込み...');
-                
-                const result = await CapacitorPreferences.get({ key: dataKey });
-                rawData = result.value;
-                
-                if (rawData) {
-                    console.log('✅ Capacitor Preferencesからデータ読み込み成功');
-                    console.log(`📊 読み込みデータサイズ: ${Math.round(rawData.length / 1024 * 100) / 100}KB`);
-                } else {
-                    console.log('ℹ️ Capacitor Preferences: 保存データなし（初回起動）');
+                try {
+                    console.log('🔄 方式1: Capacitor Preferences APIからデータ読み込み...');
+                    
+                    const loadStartTime = Date.now();
+                    const result = await CapacitorPreferences.get({ key: dataKey });
+                    const loadTime = Date.now() - loadStartTime;
+                    
+                    if (result && result.value) {
+                        rawData = result.value;
+                        loadMethod = 'Capacitor Preferences';
+                        console.log('✅ 方式1成功: Capacitor Preferencesからデータ読み込み成功');
+                        console.log(`📊 読み込みデータサイズ: ${Math.round(rawData.length / 1024 * 100) / 100}KB`);
+                        console.log(`⏱️ 読み込み時間: ${loadTime}ms`);
+                    } else {
+                        console.log('ℹ️ 方式1: Capacitor Preferences - 保存データなし（初回起動）');
+                    }
+                } catch (capacitorError) {
+                    console.warn('⚠️ 方式1失敗: Capacitor Preferences API:', capacitorError);
                 }
             } else {
-                // Web環境: localStorage fallback
-                console.log('🔄 localStorage fallbackからデータ読み込み...');
-                rawData = localStorage.getItem(dataKey);
-                
-                if (rawData) {
-                    console.log('✅ localStorageからデータ読み込み成功');
-                } else {
-                    console.log('ℹ️ localStorage: 保存データなし（初回起動）');
+                console.log('ℹ️ 方式1スキップ: Capacitor環境未検出');
+            }
+            
+            // === 方式2: IndexedDB フォールバック ===
+            if (!rawData && indexedDBSupported) {
+                try {
+                    console.log('🔄 方式2: IndexedDBからデータ読み込み...');
+                    
+                    const idbLoadStartTime = Date.now();
+                    const indexedDBData = await loadFromIndexedDB(dataKey);
+                    const idbLoadTime = Date.now() - idbLoadStartTime;
+                    
+                    if (indexedDBData) {
+                        rawData = indexedDBData;
+                        loadMethod = 'IndexedDB';
+                        console.log('✅ 方式2成功: IndexedDBからデータ読み込み成功');
+                        console.log(`📊 読み込みデータサイズ: ${Math.round(rawData.length / 1024 * 100) / 100}KB`);
+                        console.log(`⏱️ 読み込み時間: ${idbLoadTime}ms`);
+                    } else {
+                        console.log('ℹ️ 方式2: IndexedDB - 保存データなし');
+                    }
+                } catch (indexedDBError) {
+                    console.warn('⚠️ 方式2失敗: IndexedDB:', indexedDBError);
                 }
             }
             
-            const data = rawData ? JSON.parse(rawData) : {};
+            // === 方式3: localStorage緊急フォールバック ===
+            if (!rawData && window.localStorage) {
+                try {
+                    console.log('🔄 方式3: localStorage fallbackからデータ読み込み...');
+                    
+                    const localLoadStartTime = Date.now();
+                    rawData = localStorage.getItem(dataKey);
+                    const localLoadTime = Date.now() - localLoadStartTime;
+                    
+                    if (rawData) {
+                        loadMethod = 'localStorage';
+                        console.log('✅ 方式3成功: localStorageからデータ読み込み成功');
+                        console.log(`📊 読み込みデータサイズ: ${Math.round(rawData.length / 1024 * 100) / 100}KB`);
+                        console.log(`⏱️ 読み込み時間: ${localLoadTime}ms`);
+                    } else {
+                        console.log('ℹ️ 方式3: localStorage - 保存データなし（初回起動）');
+                    }
+                } catch (localStorageError) {
+                    console.error('❌ 方式3失敗: localStorage:', localStorageError);
+                }
+            }
+            
+            if (!rawData) {
+                console.log('ℹ️ 初回起動: 全ての方式で保存データなし');
+                return; // 初回起動時は処理終了
+            }
+            
+            console.log(`✅ データ読み込み成功 (使用方式: ${loadMethod})`);
+            
+            let data;
+            try {
+                data = JSON.parse(rawData);
+                console.log('✅ JSON解析成功');
+            } catch (parseError) {
+                console.error('❌ JSONデータ解析エラー:', parseError);
+                console.error('🔍 問題のあるデータ（最初の200文字）:', rawData.substring(0, 200));
+                throw new Error(`JSONデータ解析失敗: ${parseError.message}`);
+            }
+            
             const today = new Date().toDateString();
+            console.log(`📅 今日の日付: ${today}, 保存データの日付: ${data.date}`);
             
             if (data.date === today && data.filmSessions) {
-                // 既存データの復元（nullを除去）
-                this.filmSessions = Array.isArray(data.filmSessions) ? 
-                    data.filmSessions.filter(session => session !== null && session !== undefined) : [];
+                console.log('🔄 本日の保存データを復元中...');
                 
-                // 日付文字列をDateオブジェクトに変換
-                if (data.workStartTime) {
-                    data.workStartTime = new Date(data.workStartTime);
-                }
-                
-                // フィルムセッションの日付変換
-                this.filmSessions.forEach(session => {
-                    if (session.startTime) {
-                        session.startTime = new Date(session.startTime);
-                    }
-                    if (session.endTime) {
-                        session.endTime = new Date(session.endTime);
+                try {
+                    // 既存データの復元（nullを除去）
+                    this.filmSessions = Array.isArray(data.filmSessions) ? 
+                        data.filmSessions.filter(session => session !== null && session !== undefined) : [];
+                    
+                    console.log(`📋 フィルムセッション数: ${this.filmSessions.length}`);
+                    
+                    // 日付文字列をDateオブジェクトに変換
+                    if (data.workStartTime) {
+                        try {
+                            data.workStartTime = new Date(data.workStartTime);
+                            if (isNaN(data.workStartTime.getTime())) {
+                                console.warn('⚠️ workStartTime日付変換警告: 無効な日付');
+                                data.workStartTime = null;
+                            }
+                        } catch (dateError) {
+                            console.warn('⚠️ workStartTime日付変換エラー:', dateError);
+                            data.workStartTime = null;
+                        }
                     }
                     
-                    // セッション内のジョブの日付変換
-                    if (session.jobs && Array.isArray(session.jobs)) {
-                        session.jobs.forEach(job => {
-                            if (job.timestamp) {
-                                job.timestamp = new Date(job.timestamp);
+                    // フィルムセッションの日付変換
+                    this.filmSessions.forEach((session, sessionIndex) => {
+                        try {
+                            if (session.startTime) {
+                                session.startTime = new Date(session.startTime);
+                                if (isNaN(session.startTime.getTime())) {
+                                    console.warn(`⚠️ セッション${sessionIndex}: startTime無効な日付`);
+                                    session.startTime = new Date();
+                                }
                             }
-                            if (job.completedAt) {
-                                job.completedAt = new Date(job.completedAt);
+                            if (session.endTime) {
+                                session.endTime = new Date(session.endTime);
+                                if (isNaN(session.endTime.getTime())) {
+                                    console.warn(`⚠️ セッション${sessionIndex}: endTime無効な日付`);
+                                    session.endTime = null;
+                                }
                             }
-                            if (job.actualCompletionTime) {
-                                job.actualCompletionTime = new Date(job.actualCompletionTime);
+                            
+                            // セッション内のジョブの日付変換
+                            if (session.jobs && Array.isArray(session.jobs)) {
+                                session.jobs.forEach((job, jobIndex) => {
+                                    try {
+                                        if (job.timestamp) {
+                                            job.timestamp = new Date(job.timestamp);
+                                            if (isNaN(job.timestamp.getTime())) {
+                                                console.warn(`⚠️ セッション${sessionIndex}ジョブ${jobIndex}: timestamp無効な日付`);
+                                                job.timestamp = new Date();
+                                            }
+                                        }
+                                        if (job.completedAt) {
+                                            job.completedAt = new Date(job.completedAt);
+                                            if (isNaN(job.completedAt.getTime())) {
+                                                console.warn(`⚠️ セッション${sessionIndex}ジョブ${jobIndex}: completedAt無効な日付`);
+                                                job.completedAt = null;
+                                            }
+                                        }
+                                        if (job.actualCompletionTime) {
+                                            job.actualCompletionTime = new Date(job.actualCompletionTime);
+                                            if (isNaN(job.actualCompletionTime.getTime())) {
+                                                console.warn(`⚠️ セッション${sessionIndex}ジョブ${jobIndex}: actualCompletionTime無効な日付`);
+                                                job.actualCompletionTime = null;
+                                            }
+                                        }
+                                    } catch (jobDateError) {
+                                        console.warn(`⚠️ セッション${sessionIndex}ジョブ${jobIndex}日付変換エラー:`, jobDateError);
+                                    }
+                                });
                             }
-                        });
+                        } catch (sessionDateError) {
+                            console.warn(`⚠️ セッション${sessionIndex}日付変換エラー:`, sessionDateError);
+                        }
+                    });
+                    
+                    this.extraTime = Number(data.extraTime) || 0;
+                    this.workStarted = Boolean(data.workStarted);
+                    this.workStartTime = data.workStartTime ? data.workStartTime : null;
+                    this.targetEndTime = data.targetEndTime || "17:00";
+                    
+                    // 設定も復元
+                    if (data.timeSettings && typeof data.timeSettings === 'object') {
+                        this.timeSettings = { ...this.timeSettings, ...data.timeSettings };
+                        console.log('⚙️ 時間設定復元完了');
                     }
-                });
-                
-                this.extraTime = Number(data.extraTime) || 0;
-                this.workStarted = Boolean(data.workStarted);
-                this.workStartTime = data.workStartTime ? data.workStartTime : null;
-                this.targetEndTime = data.targetEndTime || "17:00";
-                
-                // 設定も復元
-                if (data.timeSettings && typeof data.timeSettings === 'object') {
-                    this.timeSettings = { ...this.timeSettings, ...data.timeSettings };
+                    
+                    // 現在のフィルムセッションを復元
+                    if (data.currentFilmSessionId && this.filmSessions.length > 0) {
+                        this.currentFilmSession = this.filmSessions.find(s => s.id === data.currentFilmSessionId) || null;
+                        if (this.currentFilmSession) {
+                            console.log(`📱 現在のフィルムセッション復元: ${this.currentFilmSession.id}`);
+                        } else {
+                            console.warn('⚠️ 指定されたセッションIDが見つかりません:', data.currentFilmSessionId);
+                        }
+                    }
+                    
+                    const totalJobs = this.filmSessions.reduce((total, session) => total + (session.jobs ? session.jobs.length : 0), 0);
+                    console.log(`✅ データ復元完了: ${this.filmSessions.length}セッション, 総ジョブ数${totalJobs}`);
+                    
+                } catch (dataRestoreError) {
+                    console.error('❌ データ復元処理中エラー:', dataRestoreError);
+                    throw new Error(`データ復元処理失敗: ${dataRestoreError.message}`);
                 }
                 
-                // 現在のフィルムセッションを復元
-                if (data.currentFilmSessionId && this.filmSessions.length > 0) {
-                    this.currentFilmSession = this.filmSessions.find(s => s.id === data.currentFilmSessionId) || null;
-                }
-                
-                console.log('データを正常に復元しました:', this.filmSessions.length + '個のセッション');
             } else {
                 // 日付が変わった場合または初回起動時はリセット
+                console.log('🔄 日付変更または初回起動 - デフォルトデータで開始');
                 this.initDefaultData();
                 
                 // 設定のみ引き継ぎ
                 if (data.timeSettings && typeof data.timeSettings === 'object') {
                     this.timeSettings = { ...this.timeSettings, ...data.timeSettings };
+                    console.log('⚙️ 前日の設定を引き継ぎました');
                 }
                 
-                if (data.date) {
+                if (data.date && data.date !== today) {
                     this.showToast('新しい日の作業を開始します', 'info');
+                    console.log(`📅 日付変更: ${data.date} → ${today}`);
                 } else {
-                    console.log('初回起動 - デフォルトデータで開始');
+                    console.log('🎉 初回起動 - デフォルトデータで開始');
                 }
             }
             
@@ -2110,8 +2743,25 @@ class LaminatorDashboard {
             this.updateFilmDisplay();
             
         } catch (error) {
-            console.error('データ読み込みエラー詳細:', error);
-            console.error('エラーが発生したlocalStorageデータ:', localStorage.getItem('laminator_dashboard_v3'));
+            console.error('❌ データ読み込み処理中の重大エラー:', error);
+            console.error('🔍 エラー詳細:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
+            });
+            
+            // デバッグ情報の出力
+            console.error('📊 デバッグ情報:');
+            console.error('- 読み込み方式:', loadMethod);
+            console.error('- Capacitor環境:', isCapacitorEnvironment);
+            console.error('- IndexedDBサポート:', indexedDBSupported);
+            console.error('- rawDataのタイプ:', typeof rawData);
+            console.error('- rawDataのサイズ:', rawData ? rawData.length : 0);
+            
+            if (rawData) {
+                console.error('- rawData最初の100文字:', rawData.substring(0, 100));
+            }
+            
             this.showToast('データの読み込みに失敗しました。初期状態で開始します。', 'error');
             this.initDefaultData();
         }

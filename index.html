@@ -5,14 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ラミオペ・ダッシュボード</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="ver7-styles.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2C3E50">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     
-    <!-- Ver.7 Simplified: Minimal Capacitor dependencies -->
+    <!-- Capacitor プラグイン読み込み (APK環境での動作確保) -->
     <script src="https://unpkg.com/@capacitor/core@7/dist/capacitor.js"></script>
+    <script src="https://unpkg.com/@capacitor/preferences@7/dist/esm/index.js" type="module"></script>
+    <script src="https://unpkg.com/@capacitor/filesystem@7/dist/esm/index.js" type="module"></script>
 </head>
 <body>
     <div class="app-container">
@@ -51,91 +52,6 @@
                 </div>
             </section>
 
-            <!-- フィルム管理エリア -->
-            <section class="film-management card">
-                <h3>フィルム管理</h3>
-                
-                <!-- 現在のフィルムロール表示 -->
-                <div class="current-film-display">
-                    <h4>現在選択中のフィルム</h4>
-                    <div id="current-film-roll" class="film-info">
-                        フィルムロールを選択してください
-                    </div>
-                </div>
-                
-                <!-- フィルムロール選択 -->
-                <div class="film-selector">
-                    <label for="film-roll-selector">フィルムロール選択:</label>
-                    <select id="film-roll-selector" onchange="dashboard.selectFilmRoll(this.value)">
-                        <option value="">フィルムロールを選択</option>
-                    </select>
-                </div>
-                
-                <!-- 新規フィルムロール追加 -->
-                <div class="add-film-form">
-                    <h4>新しいフィルムロール追加</h4>
-                    <div class="form-row">
-                        <input type="text" id="new-film-name" placeholder="フィルム名" required>
-                        <input type="number" id="new-film-meters" placeholder="m" min="1" step="0.1" required>
-                        <select id="new-film-width" required>
-                            <option value="">幅</option>
-                            <option value="330mm">330</option>
-                            <option value="420mm">420</option>
-                            <option value="500mm">500</option>
-                        </select>
-                        <button onclick="dashboard.addNewFilmRoll()">追加</button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ジョブ追加エリア -->
-            <section class="job-add-area card">
-                <h3>新しいジョブ追加</h3>
-                <div class="job-form">
-                    <div class="form-row">
-                        <input type="text" id="job-name" placeholder="ジョブ名" required>
-                        <input type="number" id="job-sheets" placeholder="枚" min="1" required>
-                        <select id="job-size" required>
-                            <option value="">サイズ</option>
-                            <option value="A4">A4</option>
-                            <option value="A3">A3</option>
-                            <option value="B4">B4</option>
-                            <option value="B5">B5</option>
-                        </select>
-                        <select id="job-priority">
-                            <option value="normal">標準</option>
-                            <option value="high">高</option>
-                            <option value="urgent">緊急</option>
-                            <option value="low">通常</option>
-                        </select>
-                        <button onclick="dashboard.addNewJob()">追加</button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 統計表示エリア -->
-            <section class="stats-area card">
-                <h3>作業統計</h3>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <div class="stat-label">待機ジョブ数</div>
-                        <div class="stat-value" id="total-jobs">0</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">総枚数</div>
-                        <div class="stat-value" id="total-sheets">0</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">予想時間</div>
-                        <div class="stat-value" id="total-time">0分</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">フィルム使用量</div>
-                        <div class="stat-value" id="total-film-usage">0.0m</div>
-                    </div>
-                </div>
-            </section>
-
             <!-- 操作エリア -->
             <section class="operation-area">
                 
@@ -159,10 +75,10 @@
                     <button class="report-btn" onclick="dashboard.showReport()">📊 本日のレポート</button>
                 </div>
                 
-                <div id="jobs-container" class="job-list-container">
+                <div id="jobListContainer" class="job-list-container">
                     <div class="empty-state">
                         まだジョブが登録されていません<br>
-                        上記「新しいジョブ追加」エリアからジョブを追加してください
+                        「+ 新しいフィルムでジョブを開始」ボタンからジョブを追加してください
                     </div>
                 </div>
             </section>
@@ -263,10 +179,10 @@
     </div>
     
     <footer style="text-align: center; padding: 10px; border-top: 1px solid #ccc; font-size: 12px; color: #888;">
-        Ver. 7.0 - Simplified System (localStorage-first)
+        Ver. 5.0 - Capacitor多層データ保存システム完全実装版
     </footer>
 
-    <script src="script-simple.js"></script>
+    <script src="script.js"></script>
     <!-- テストスクリプト（開発時のみ有効化） -->
     <!-- <script src="test-v3.js"></script> -->
 </body>
