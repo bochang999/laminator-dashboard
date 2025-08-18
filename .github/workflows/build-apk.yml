@@ -233,7 +233,7 @@ jobs:
           android {
               signingConfigs {
                   release {
-                      storeFile file('../../laminator-release.keystore')
+                      storeFile file('laminator-release.keystore')
                       storePassword 'laminator2025'
                       keyAlias 'laminator-key'
                       keyPassword 'laminator2025'
