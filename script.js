@@ -2700,23 +2700,59 @@ async function initializeCapacitor() {
             console.log('✅ ネイティブプラットフォーム環境を検出');
             isCapacitorEnvironment = true;
             
-            // 動的インポートでプラグインを読み込み
+            // APK環境ではプラグインが既にバンドル済み
             try {
-                console.log('🔄 Capacitorプラグイン読み込み開始...');
+                console.log('🔄 バンドル済みCapacitorプラグイン使用...');
                 
-                const { Preferences } = await import('https://unpkg.com/@capacitor/preferences@7/dist/esm/index.js');
-                const { Filesystem, Directory, Encoding } = await import('https://unpkg.com/@capacitor/filesystem@7/dist/esm/index.js');
+                // APK環境では window.Capacitor 経由でプラグインにアクセス
+                if (window.Capacitor?.Plugins?.Preferences) {
+                    CapacitorPreferences = window.Capacitor.Plugins.Preferences;
+                    console.log('✅ バンドル済み Preferences プラグイン取得成功');
+                } else {
+                    throw new Error('Preferences プラグインがバンドルされていません');
+                }
                 
-                CapacitorPreferences = Preferences;
-                CapacitorFilesystem = Filesystem;
-                CapacitorDirectory = Directory;
-                CapacitorEncoding = Encoding;
+                if (window.Capacitor?.Plugins?.Filesystem) {
+                    CapacitorFilesystem = window.Capacitor.Plugins.Filesystem;
+                    // Directory と Encoding も Capacitor から取得
+                    CapacitorDirectory = window.Capacitor.Directory || {
+                        Documents: 'DOCUMENTS',
+                        Data: 'DATA',
+                        Cache: 'CACHE',
+                        External: 'EXTERNAL',
+                        ExternalStorage: 'EXTERNAL_STORAGE'
+                    };
+                    CapacitorEncoding = window.Capacitor.Encoding || {
+                        UTF8: 'utf8',
+                        ASCII: 'ascii',
+                        UTF16: 'utf16'
+                    };
+                    console.log('✅ バンドル済み Filesystem プラグイン取得成功');
+                } else {
+                    throw new Error('Filesystem プラグインがバンドルされていません');
+                }
                 
-                console.log('✅ Capacitor Preferences & Filesystem プラグイン初期化成功');
+                console.log('✅ 全Capacitorプラグイン初期化成功（バンドル方式）');
                 
             } catch (pluginError) {
-                console.error('❌ Capacitorプラグイン読み込みエラー:', pluginError);
-                isCapacitorEnvironment = false;
+                console.error('❌ バンドル済みプラグイン取得エラー:', pluginError);
+                console.log('🔄 CDN動的インポートにフォールバック...');
+                
+                // CDN動的インポートをフォールバックとして試行
+                try {
+                    const { Preferences } = await import('https://unpkg.com/@capacitor/preferences@7/dist/esm/index.js');
+                    const { Filesystem, Directory, Encoding } = await import('https://unpkg.com/@capacitor/filesystem@7/dist/esm/index.js');
+                    
+                    CapacitorPreferences = Preferences;
+                    CapacitorFilesystem = Filesystem;
+                    CapacitorDirectory = Directory;
+                    CapacitorEncoding = Encoding;
+                    
+                    console.log('✅ CDN動的インポート成功');
+                } catch (cdnError) {
+                    console.error('❌ CDN動的インポートも失敗:', cdnError);
+                    isCapacitorEnvironment = false;
+                }
             }
         } else {
             isCapacitorEnvironment = false;
