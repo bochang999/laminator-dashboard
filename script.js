@@ -1791,14 +1791,14 @@ class LaminatorDashboard {
                 await ensureFsReady();
                 
                 await CapacitorFilesystem.writeFile({
-                    path: filename,
+                    path: `LamiOpe/${filename}`,
                     data: csvContent,
-                    directory: 'DOCUMENTS', // Directory.Documents の文字列定数
-                    encoding: 'utf8' // Encoding.UTF8 の文字列定数
+                    directory: CapacitorDirectory.Documents,
+                    encoding: CapacitorEncoding.UTF8
                 });
                 
                 console.log('✅ CSV エクスポート完了:', completedJobs.length + '件');
-                this.showToast(`CSV を Documents/${filename} に保存しました (${completedJobs.length}件)`, 'success');
+                this.showToast(`CSV を Documents/LamiOpe/${filename} に保存しました (${completedJobs.length}件)`, 'success');
             } else {
                 // Web環境: Blob download fallback
                 console.log('🔄 Webブラウザ環境でCSVダウンロード...');
@@ -2575,14 +2575,14 @@ class LaminatorDashboard {
                     await ensureFsReady();
                     
                     await CapacitorFilesystem.writeFile({
-                        path: filename,
+                        path: `LamiOpe/${filename}`,
                         data: data,
-                        directory: 'DOCUMENTS', // Directory.Documents の文字列定数
-                        encoding: 'utf8' // Encoding.UTF8 の文字列定数
+                        directory: CapacitorDirectory.Documents,
+                        encoding: CapacitorEncoding.UTF8
                     });
                     
                     console.log('✅ Capacitor Filesystemでバックアップ保存成功');
-                    this.showToast(`バックアップファイルをDocuments/${filename}に保存しました`, 'success');
+                    this.showToast(`バックアップファイルをDocuments/LamiOpe/${filename}に保存しました`, 'success');
                     
                 } catch (fsError) {
                     console.warn('❌ Filesystem保存失敗、blob保存にfallback:', fsError);
