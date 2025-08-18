@@ -305,6 +305,47 @@ class SimpleLaminatorDashboard {
         this.updateJobList();
         this.updateStats();
         this.updateCurrentFilmRollDisplay();
+        console.log('UI updated');
+    }
+    
+    // ===== HTML Form Integration Functions =====
+    
+    addNewFilmRoll() {
+        const name = document.getElementById('new-film-name').value.trim();
+        const meters = document.getElementById('new-film-meters').value;
+        const width = document.getElementById('new-film-width').value;
+        
+        if (!name || !meters || !width) {
+            this.showToast('すべての項目を入力してください', 'warning');
+            return;
+        }
+        
+        this.addFilmRoll(name, parseFloat(meters), width);
+        
+        // Clear form
+        document.getElementById('new-film-name').value = '';
+        document.getElementById('new-film-meters').value = '';
+        document.getElementById('new-film-width').value = '';
+    }
+    
+    addNewJob() {
+        const name = document.getElementById('job-name').value.trim();
+        const sheets = document.getElementById('job-sheets').value;
+        const size = document.getElementById('job-size').value;
+        const priority = document.getElementById('job-priority').value;
+        
+        if (!name || !sheets || !size) {
+            this.showToast('ジョブ名、枚数、サイズを入力してください', 'warning');
+            return;
+        }
+        
+        if (this.addJob(name, parseInt(sheets), size, priority)) {
+            // Clear form on success
+            document.getElementById('job-name').value = '';
+            document.getElementById('job-sheets').value = '';
+            document.getElementById('job-size').value = '';
+            document.getElementById('job-priority').value = 'normal';
+        }
     }
     
     updateFilmRollSelector() {
@@ -346,10 +387,15 @@ class SimpleLaminatorDashboard {
         const totalTime = pendingJobs.reduce((sum, job) => sum + job.processingTime, 0);
         const totalFilmUsage = pendingJobs.reduce((sum, job) => sum + job.totalFilmUsage, 0);
         
-        document.getElementById('total-jobs').textContent = pendingJobs.length;
-        document.getElementById('total-sheets').textContent = totalSheets;
-        document.getElementById('total-time').textContent = totalTime;
-        document.getElementById('total-film-usage').textContent = totalFilmUsage.toFixed(2);
+        const totalJobsEl = document.getElementById('total-jobs');
+        const totalSheetsEl = document.getElementById('total-sheets');
+        const totalTimeEl = document.getElementById('total-time');
+        const totalFilmUsageEl = document.getElementById('total-film-usage');
+        
+        if (totalJobsEl) totalJobsEl.textContent = pendingJobs.length;
+        if (totalSheetsEl) totalSheetsEl.textContent = totalSheets;
+        if (totalTimeEl) totalTimeEl.textContent = totalTime + '分';
+        if (totalFilmUsageEl) totalFilmUsageEl.textContent = totalFilmUsage.toFixed(2) + 'm';
     }
     
     updateCurrentFilmRollDisplay() {
@@ -372,6 +418,67 @@ class SimpleLaminatorDashboard {
             'urgent': '緊急'
         };
         return labels[priority] || '標準';
+    }
+    
+    // ===== Placeholder Functions for UI Integration =====
+    
+    showSettings() {
+        const modal = document.getElementById('settingsModal');
+        if (modal) {
+            modal.style.display = 'block';
+        }
+    }
+    
+    hideSettings() {
+        const modal = document.getElementById('settingsModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+    
+    showReport() {
+        const modal = document.getElementById('reportModal');
+        if (modal) {
+            modal.style.display = 'block';
+        }
+    }
+    
+    hideReport() {
+        const modal = document.getElementById('reportModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+    
+    startWork() {
+        this.showToast('業務開始機能はVer.7.1で実装予定です', 'info');
+    }
+    
+    addLunchBreak() {
+        this.showToast('昼休み追加機能はVer.7.1で実装予定です', 'info');
+    }
+    
+    addManualTime() {
+        this.showToast('手動時間追加機能はVer.7.1で実装予定です', 'info');
+    }
+    
+    addExchangeTime() {
+        this.showToast('交換時間追加機能はVer.7.1で実装予定です', 'info');
+    }
+    
+    backupData() {
+        this.exportBackup();
+    }
+    
+    triggerRestore() {
+        document.getElementById('restore-file-input').click();
+    }
+    
+    restoreData(event) {
+        const file = event.target.files[0];
+        if (file) {
+            this.importBackup(file);
+        }
     }
 }
 
