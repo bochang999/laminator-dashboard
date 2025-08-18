@@ -3406,3 +3406,261 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 });
+
+// ===== ダッシュボードクラス Ver.5.0 =====
+class LaminatorDashboard {
+    constructor() {
+        this.initialize();
+    }
+
+    async initialize() {
+        console.log('🎛️ ダッシュボード初期化開始...');
+        await this.loadData();
+        this.setupEventListeners();
+        this.updateDisplay();
+        console.log('✅ ダッシュボード初期化完了');
+    }
+
+    // データ管理機能
+    async backupData() {
+        try {
+            console.log('📤 バックアップデータ生成開始...');
+            
+            const backupData = {
+                version: '5.0',
+                timestamp: new Date().toISOString(),
+                data: {
+                    filmSessions: this.filmSessions || [],
+                    timeSettings: this.timeSettings || {},
+                    workStartTime: this.workStartTime || null,
+                    targetEndTime: this.targetEndTime || '17:00',
+                    extraTime: this.extraTime || 0
+                },
+                metadata: {
+                    totalJobs: (this.filmSessions || []).reduce((total, session) => total + (session.jobs?.length || 0), 0),
+                    totalSessions: (this.filmSessions || []).length,
+                    deviceInfo: {
+                        userAgent: navigator.userAgent,
+                        platform: navigator.platform,
+                        language: navigator.language
+                    }
+                }
+            };
+
+            const backupJson = JSON.stringify(backupData, null, 2);
+            const blob = new Blob([backupJson], { type: 'application/json' });
+            
+            // ダウンロード実行
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `laminator_backup_${new Date().toISOString().split('T')[0]}.json`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            console.log('✅ バックアップファイル生成完了');
+            this.showToast('バックアップファイルをダウンロードしました', 'success');
+            
+        } catch (error) {
+            console.error('❌ バックアップエラー:', error);
+            this.showToast('バックアップの作成に失敗しました', 'error');
+        }
+    }
+
+    // CSVエクスポート機能
+    exportCsv() {
+        try {
+            console.log('📋 CSV業務記録生成開始...');
+            
+            if (!this.filmSessions || this.filmSessions.length === 0) {
+                this.showToast('エクスポートするデータがありません', 'warning');
+                return;
+            }
+
+            // CSVヘッダー
+            const csvHeaders = [
+                '日付', 'フィルムセッション', 'ジョブ番号', 'ジョブ名',
+                '枚数', '用紙長(mm)', 'オーバーラップ(mm)', '機械速度(m/分)',
+                '使用量(m)', '加工時間(分)', '完了状態', '作成時刻'
+            ];
+
+            const csvRows = [csvHeaders.join(',')];
+            const today = new Date().toLocaleDateString('ja-JP');
+
+            // データ行生成
+            this.filmSessions.forEach((session, sessionIndex) => {
+                if (session.jobs && session.jobs.length > 0) {
+                    session.jobs.forEach((job, jobIndex) => {
+                        const row = [
+                            today,
+                            `フィルム${sessionIndex + 1}`,
+                            jobIndex + 1,
+                            job.jobName || `ジョブ${jobIndex + 1}`,
+                            job.sheets || 0,
+                            job.paperLength || 0,
+                            job.overlapWidth || 0,
+                            job.processSpeed || 0,
+                            (job.usageLength || 0).toFixed(2),
+                            (job.processingTime || 0).toFixed(2),
+                            job.completed ? '完了' : '未完了',
+                            job.createdAt ? new Date(job.createdAt).toLocaleString('ja-JP') : '不明'
+                        ];
+                        csvRows.push(row.join(','));
+                    });
+                }
+            });
+
+            // CSV文字列生成
+            const csvContent = csvRows.join('\n');
+            const bom = '\uFEFF'; // UTF-8 BOM for Excel compatibility
+            const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+
+            // ダウンロード実行
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `laminator_work_record_${today.replace(/\//g, '-')}.csv`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            console.log('✅ CSV業務記録生成完了');
+            this.showToast('業務記録CSVをダウンロードしました', 'success');
+
+        } catch (error) {
+            console.error('❌ CSVエクスポートエラー:', error);
+            this.showToast('CSVエクスポートに失敗しました', 'error');
+        }
+    }
+
+    // バックアップ復元
+    triggerRestore() {
+        const fileInput = document.getElementById('restore-file-input');
+        if (fileInput) {
+            fileInput.click();
+        }
+    }
+
+    async restoreData(event) {
+        try {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            console.log('📥 バックアップ復元開始...');
+
+            const text = await file.text();
+            const backupData = JSON.parse(text);
+
+            // バリデーション
+            if (!backupData.version || !backupData.data) {
+                throw new Error('無効なバックアップファイル形式');
+            }
+
+            // データ復元確認
+            const confirmation = confirm(
+                `バックアップデータを復元しますか？\n\n` +
+                `作成日時: ${new Date(backupData.timestamp).toLocaleString('ja-JP')}\n` +
+                `セッション数: ${backupData.metadata?.totalSessions || 0}\n` +
+                `ジョブ数: ${backupData.metadata?.totalJobs || 0}\n\n` +
+                `現在のデータは上書きされます。`
+            );
+
+            if (!confirmation) return;
+
+            // データ復元実行
+            this.filmSessions = backupData.data.filmSessions || [];
+            this.timeSettings = backupData.data.timeSettings || {};
+            this.workStartTime = backupData.data.workStartTime;
+            this.targetEndTime = backupData.data.targetEndTime || '17:00';
+            this.extraTime = backupData.data.extraTime || 0;
+
+            // データ保存
+            await this.saveData();
+
+            // 表示更新
+            this.updateDisplay();
+            this.renderJobList();
+
+            console.log('✅ バックアップ復元完了');
+            this.showToast('バックアップデータを復元しました', 'success');
+
+            // ファイル入力をクリア
+            event.target.value = '';
+
+        } catch (error) {
+            console.error('❌ バックアップ復元エラー:', error);
+            this.showToast('バックアップの復元に失敗しました', 'error');
+        }
+    }
+
+    // イベントリスナー設定
+    setupEventListeners() {
+        // CSVエクスポートボタン
+        const exportCsvBtn = document.getElementById('exportCsvBtn');
+        if (exportCsvBtn) {
+            exportCsvBtn.addEventListener('click', () => this.exportCsv());
+        }
+
+        // ジョブクリアボタン
+        const clearJobsBtn = document.getElementById('clearJobsBtn');
+        if (clearJobsBtn) {
+            clearJobsBtn.addEventListener('click', () => this.clearAllJobs());
+        }
+    }
+
+    // 全ジョブクリア
+    clearAllJobs() {
+        const confirmation = confirm('本日のすべてのジョブを削除しますか？\nこの操作は取り消せません。');
+        if (!confirmation) return;
+
+        this.filmSessions = [];
+        this.saveData();
+        this.renderJobList();
+        this.updateDisplay();
+        this.showToast('すべてのジョブを削除しました', 'success');
+    }
+
+    // トースト通知
+    showToast(message, type = 'info') {
+        console.log(`🔔 ${type.toUpperCase()}: ${message}`);
+        // 簡易実装 - 実際のトースト表示はstyle.cssのスタイルに依存
+        alert(message);
+    }
+
+    // Ver.5.0 統合メソッド（メインクラスとの連携）
+    async loadData() { 
+        console.log('📖 データ読み込み処理 - メインクラスのloadData()に委譲');
+        if (window.appInstance && typeof window.appInstance.loadData === 'function') {
+            await window.appInstance.loadData();
+        }
+    }
+    
+    async saveData() { 
+        console.log('💾 データ保存処理 - メインクラスのsaveData()に委譲');
+        if (window.appInstance && typeof window.appInstance.saveData === 'function') {
+            await window.appInstance.saveData();
+        }
+    }
+    
+    updateDisplay() { 
+        console.log('🔄 画面更新処理 - メインクラスのupdateDisplay()に委譲');
+        if (window.appInstance && typeof window.appInstance.updateDisplay === 'function') {
+            window.appInstance.updateDisplay();
+        }
+    }
+    
+    renderJobList() { 
+        console.log('📋 ジョブリスト描画処理 - メインクラスのrenderJobList()に委譲');
+        if (window.appInstance && typeof window.appInstance.renderJobList === 'function') {
+            window.appInstance.renderJobList();
+        }
+    }
+}
+
+// グローバルダッシュボードインスタンス
+window.dashboard = new LaminatorDashboard();
