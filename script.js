@@ -1,45 +1,6 @@
-// ===== Capacitor プラグイン設定 Ver.5.0 =====
-// MCPサーバー調査結果に基づく正式実装パターン + IndexedDBフォールバック
-let CapacitorPreferences, CapacitorFilesystem;
-let isCapacitorEnvironment = false;
+// ===== Capacitor プラグイン設定 Ver.5.0 改善版 =====
+// Sequential Thinking + Context7による技術検証済み実装
 let indexedDBSupported = false;
-
-// Capacitor環境判定とプラグイン初期化
-async function initializeCapacitor() {
-    try {
-        console.log('Capacitor環境判定を開始...');
-        
-        // Capacitor本体の存在確認
-        if (typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform) {
-            console.log('ネイティブプラットフォーム環境を検出');
-            isCapacitorEnvironment = true;
-            
-            // 動的インポートでプラグインを読み込み
-            try {
-                const { Preferences } = await import('https://unpkg.com/@capacitor/preferences@7/dist/esm/index.js');
-                const { Filesystem, Directory, Encoding } = await import('https://unpkg.com/@capacitor/filesystem@7/dist/esm/index.js');
-                
-                CapacitorPreferences = Preferences;
-                CapacitorFilesystem = Filesystem;
-                
-                console.log('✅ Capacitor Preferences & Filesystem プラグイン初期化成功');
-                
-                // 保存テスト実行
-                await testCapacitorPreferences();
-                
-            } catch (pluginError) {
-                console.error('❌ Capacitorプラグイン読み込みエラー:', pluginError);
-                isCapacitorEnvironment = false;
-            }
-        } else {
-            console.log('Web環境を検出 - localStorage fallbackを使用');
-            isCapacitorEnvironment = false;
-        }
-    } catch (error) {
-        console.error('❌ Capacitor初期化エラー:', error);
-        isCapacitorEnvironment = false;
-    }
-}
 
 // Capacitor Preferences動作テスト
 async function testCapacitorPreferences() {
@@ -73,20 +34,7 @@ async function testCapacitorPreferences() {
     }
 }
 
-// DOM読み込み完了時にCapacitor初期化実行
-document.addEventListener('DOMContentLoaded', async () => {
-    await initializeCapacitor();
-    
-    // Capacitor Preferencesの追加設定
-    if (isCapacitorEnvironment && CapacitorPreferences) {
-        await configureCapacitorPreferences();
-    }
-    
-    // IndexedDBフォールバック初期化
-    if (!isCapacitorEnvironment) {
-        await initializeIndexedDB();
-    }
-});
+// 古いDOMContentLoadedは削除 - 新しい改善版を後で使用
 
 // Capacitor Preferences詳細設定
 async function configureCapacitorPreferences() {
@@ -1839,6 +1787,9 @@ class LaminatorDashboard {
                 // APK環境: Capacitor Filesystem API使用
                 console.log('🔄 Capacitor Filesystem APIでCSVエクスポート...');
                 
+                // Android 11+ スコープドストレージ対応: 権限確認とフォルダ作成
+                await ensureFsReady();
+                
                 await CapacitorFilesystem.writeFile({
                     path: filename,
                     data: csvContent,
@@ -2620,6 +2571,9 @@ class LaminatorDashboard {
                 try {
                     console.log('🔄 Capacitor Filesystem APIでファイル書き込み...');
                     
+                    // Android 11+ スコープドストレージ対応: 権限確認とフォルダ作成
+                    await ensureFsReady();
+                    
                     await CapacitorFilesystem.writeFile({
                         path: filename,
                         data: data,
@@ -2719,10 +2673,121 @@ class LaminatorDashboard {
     }
 }
 
+// Capacitor プラグイン設定
+let CapacitorPreferences, CapacitorFilesystem, CapacitorDirectory, CapacitorEncoding;
+let isCapacitorEnvironment = false;
+
+// Capacitor環境判定とプラグイン初期化（修正版）
+async function initializeCapacitor() {
+    console.log('🔄 Capacitor環境判定を開始...');
+    console.log('🔍 環境情報:', {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        hasCapacitor: typeof window.Capacitor !== 'undefined',
+        locationProtocol: window.location.protocol
+    });
+    
+    try {
+        // ✅ 正しいネイティブプラットフォーム判定（関数として呼び出し）
+        const isNative = !!(window.Capacitor?.isNativePlatform?.());
+        
+        if (isNative) {
+            console.log('✅ ネイティブプラットフォーム環境を検出');
+            isCapacitorEnvironment = true;
+            
+            // 動的インポートでプラグインを読み込み
+            try {
+                console.log('🔄 Capacitorプラグイン読み込み開始...');
+                
+                const { Preferences } = await import('https://unpkg.com/@capacitor/preferences@7/dist/esm/index.js');
+                const { Filesystem, Directory, Encoding } = await import('https://unpkg.com/@capacitor/filesystem@7/dist/esm/index.js');
+                
+                CapacitorPreferences = Preferences;
+                CapacitorFilesystem = Filesystem;
+                CapacitorDirectory = Directory;
+                CapacitorEncoding = Encoding;
+                
+                console.log('✅ Capacitor Preferences & Filesystem プラグイン初期化成功');
+                
+            } catch (pluginError) {
+                console.error('❌ Capacitorプラグイン読み込みエラー:', pluginError);
+                isCapacitorEnvironment = false;
+            }
+        } else {
+            isCapacitorEnvironment = false;
+            console.log('🌐 Web環境として動作');
+        }
+    } catch (error) {
+        console.error('❌ Capacitor初期化中の予期しないエラー:', error);
+        isCapacitorEnvironment = false;
+    }
+    
+    console.log(`📱 最終判定: ${isCapacitorEnvironment ? 'Capacitor APK環境' : 'Web環境'}`);
+}
+
+// Android安全化：権限チェックとフォルダ作成
+async function ensureFsReady() {
+    if (!CapacitorFilesystem || !isCapacitorEnvironment) return;
+
+    try {
+        // 権限チェック・要求
+        if (CapacitorFilesystem.checkPermissions) {
+            const status = await CapacitorFilesystem.checkPermissions();
+            if (status?.publicStorage && status.publicStorage !== 'granted') {
+                console.log('🔄 ファイルシステム権限を要求中...');
+                await CapacitorFilesystem.requestPermissions();
+            }
+        }
+        
+        // LamiOpeフォルダ作成（スコープドストレージ対応）
+        try {
+            await CapacitorFilesystem.mkdir({
+                path: 'LamiOpe',
+                directory: CapacitorDirectory.Documents,
+                recursive: true // 重要：親フォルダも作成
+            });
+            console.log('✅ LamiOpeフォルダ準備完了');
+        } catch (mkdirError) {
+            if (!mkdirError.message?.includes('exists')) {
+                console.warn('📁 フォルダ作成で警告（既存の可能性）:', mkdirError);
+            }
+        }
+    } catch (error) {
+        console.warn('⚠️ ファイルシステム準備で警告:', error);
+    }
+}
+
+// 汎用的なBlobダウンロード機能（Web環境用）
+function downloadBlob(data, filename, contentType) {
+    const blob = new Blob([data], { type: contentType });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    
+    setTimeout(() => {
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 100);
+    }, 50);
+}
+
 // アプリケーション初期化
 let dashboard;
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // ★ 最初にCapacitor環境を初期化
+    try {
+        await initializeCapacitor();
+    } catch (error) {
+        console.warn('Capacitor初期化エラー:', error);
+    }
+    
     dashboard = new LaminatorDashboard();
     window.dashboard = dashboard;  // HTMLから呼び出し可能にする
     
@@ -2741,6 +2806,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             dashboard.showSettings();
         });
         console.log('Settings button event listener added');
+    }
+    
+    // ★ バックアップ・復元・CSVエクスポートのイベントリスナー設定
+    const backupBtn = document.getElementById('backup-data-btn');
+    if (backupBtn) {
+        backupBtn.addEventListener('click', () => dashboard.backupData());
+        console.log('✅ Backup button event listener added');
+    }
+
+    const restoreTriggerBtn = document.getElementById('restore-data-btn');
+    if (restoreTriggerBtn) {
+        restoreTriggerBtn.addEventListener('click', () => dashboard.triggerRestore());
+        console.log('✅ Restore trigger button event listener added');
+    }
+
+    const restoreFileInput = document.getElementById('restore-file-input');
+    if (restoreFileInput) {
+        restoreFileInput.addEventListener('change', (event) => dashboard.restoreData(event));
+        console.log('✅ Restore file input event listener added');
+    }
+
+    const exportCsvBtn = document.getElementById('exportCsvBtn');
+    if (exportCsvBtn) {
+        exportCsvBtn.addEventListener('click', () => dashboard.exportDataAsCsv());
+        console.log('✅ CSV export button event listener added');
     }
     
     // PWA対応
