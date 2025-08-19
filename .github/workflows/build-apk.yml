@@ -13,7 +13,7 @@ jobs:
 
     env:
       NODE_VERSION: '20'
-      JAVA_VERSION: '21'          # Capacitor 7 requires JDK 21
+      JAVA_VERSION: '17'          # JDK 17 for AGP 8.5 stability (String.call() fix)
       APP_ID: com.bochang.laminator
       APP_NAME: 'Laminator Dashboard'
 
@@ -212,13 +212,16 @@ jobs:
 
       - name: Set Version Information
         run: |
-          echo "📋 Setting version information for Ver.8.2 Advanced Signature System - Safe Gradle..."
+          echo "📋 Setting version information for Ver.8.3 String.call() Fix + Fingerprint Gate..."
           VERSION_MAJOR="8"
-          VERSION_MINOR="2"
+          VERSION_MINOR="3"
           VERSION_PATCH="${{ github.run_number }}"
           VERSION_TAG="$VERSION_MAJOR.$VERSION_MINOR.$VERSION_PATCH"
+          # Ensure versionCode monotonic increase (80000 + run_number)
+          VERSION_CODE=$((80000 + ${{ github.run_number }}))
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
-          echo "✅ Version tag set to: $VERSION_TAG"
+          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
+          echo "✅ Version tag set to: $VERSION_TAG (Code: $VERSION_CODE)"
 
       - name: Pre-Build Cleanup
         run: |
@@ -315,127 +318,98 @@ jobs:
           echo "ℹ️ Skipping golden template - using Capacitor official signing configuration instead..."
           echo "✅ Template step skipped for Capacitor methodology."
 
-      - name: Configure Gradle Signing (Safe Append Method)
+      - name: Create Static Gradle Signing Configuration
         run: |
-          echo "🔧 Configuring build.gradle with safe signing configuration append..."
+          echo "🔧 Creating static build.gradle signing configuration (String.call() fix)..."
           
           if [ -f android/app/build.gradle ]; then
             echo "📝 Backing up original build.gradle..."
             cp android/app/build.gradle android/app/build.gradle.backup
             
-            echo "🔍 Checking existing build.gradle structure..."
-            if grep -q "signingConfigs" android/app/build.gradle; then
-              echo "⚠️ Existing signingConfigs found - will replace them"
-              
-              # Remove only the signing-related sections, preserving everything else
-              sed -i '/signingConfigs[[:space:]]*{/,/^[[:space:]]*}[[:space:]]*$/d' android/app/build.gradle
-              sed -i 's/signingConfig[[:space:]]*signingConfigs\.[a-zA-Z]*/\/\/ signingConfig removed - will be added via environment variables/g' android/app/build.gradle
-            fi
+            echo "📝 Injecting static signing configuration block..."
             
-            echo "📝 Adding environment variable-based signing configuration..."
-            
-            # Find the android block and add signing configuration right after it
+            # Create static signing configuration that uses Gradle properties (-P flags)
+            cat > android/app/build.gradle.signing <<'EOF'
+
+    signingConfigs {
+        release {
+            // Use Gradle properties passed via -P flags (no variable name conflicts)
+            storeFile file(project.hasProperty('LAMINATOR_STORE_FILE') ? project.property('LAMINATOR_STORE_FILE') : '')
+            storePassword project.hasProperty('LAMINATOR_STORE_PASSWORD') ? project.property('LAMINATOR_STORE_PASSWORD') : ''
+            keyAlias project.hasProperty('LAMINATOR_KEY_ALIAS') ? project.property('LAMINATOR_KEY_ALIAS') : ''
+            keyPassword project.hasProperty('LAMINATOR_KEY_PASSWORD') ? project.property('LAMINATOR_KEY_PASSWORD') : ''
+        }
+        debug {
+            // Use same signing as release for update compatibility
+            storeFile file(project.hasProperty('LAMINATOR_STORE_FILE') ? project.property('LAMINATOR_STORE_FILE') : '')
+            storePassword project.hasProperty('LAMINATOR_STORE_PASSWORD') ? project.property('LAMINATOR_STORE_PASSWORD') : ''
+            keyAlias project.hasProperty('LAMINATOR_KEY_ALIAS') ? project.property('LAMINATOR_KEY_ALIAS') : ''
+            keyPassword project.hasProperty('LAMINATOR_KEY_PASSWORD') ? project.property('LAMINATOR_KEY_PASSWORD') : ''
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            signingConfig signingConfigs.debug
+            debuggable true
+        }
+    }
+EOF
+
+            # Insert the signing configuration after the android { line
             awk '
             /^[[:space:]]*android[[:space:]]*{/ {
-              print $0
-              print ""
-              print "    signingConfigs {"
-              print "        release {"
-              print "            // Environment variable-based signing configuration"
-              print "            def keystoreFilePath = System.getenv(\"KEYSTORE_FILE\")"
-              print "            def keystorePassword = System.getenv(\"KEYSTORE_PASSWORD\")"  
-              print "            def keyAliasName = System.getenv(\"KEY_ALIAS\")"
-              print "            def keyPassword = System.getenv(\"KEY_PASSWORD\")"
-              print ""
-              print "            if (keystoreFilePath && keystorePassword && keyAliasName && keyPassword) {"
-              print "                storeFile file(keystoreFilePath)"
-              print "                storePassword keystorePassword"
-              print "                keyAlias keyAliasName"
-              print "                keyPassword keyPassword"
-              print "                println \"✅ Gradle: Using custom keystore: ${keystoreFilePath}\""
-              print "            } else {"
-              print "                println \"❌ Gradle: Missing signing environment variables\""
-              print "                println \"   KEYSTORE_FILE: ${keystoreFilePath ? 'SET' : 'MISSING'}\""
-              print "                println \"   KEYSTORE_PASSWORD: ${keystorePassword ? 'SET' : 'MISSING'}\""
-              print "                println \"   KEY_ALIAS: ${keyAliasName ? 'SET' : 'MISSING'}\""
-              print "                println \"   KEY_PASSWORD: ${keyPassword ? 'SET' : 'MISSING'}\""
-              print "                throw new GradleException(\"Signing configuration incomplete - cannot build signed APK\")"
-              print "            }"
-              print "        }"
-              print "        debug {"
-              print "            // Use same signing as release for update compatibility"
-              print "            initWith signingConfigs.release"
-              print "            println \"🔧 Gradle: Debug build using release signing for update compatibility\""
-              print "        }"
-              print "    }"
-              print ""
-              next
+                print $0
+                system("cat android/app/build.gradle.signing")
+                next
             }
-            /^[[:space:]]*buildTypes[[:space:]]*{/ {
-              print $0
-              print "        release {"
-              print "            signingConfig signingConfigs.release"
-              print "            minifyEnabled false"
-              print "            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'"
-              print "        }"
-              print "        debug {"
-              print "            signingConfig signingConfigs.debug"
-              print "            debuggable true"
-              print "        }"
-              # Skip the original buildTypes content
-              in_build_types = 1
-              brace_count = 1
-              next
+            /^[[:space:]]*signingConfigs[[:space:]]*{/,/^[[:space:]]*}[[:space:]]*$/ {
+                next
             }
-            in_build_types == 1 {
-              if ($0 ~ /{/) brace_count++
-              if ($0 ~ /}/) brace_count--
-              if (brace_count == 0) {
-                in_build_types = 0
-                print "    }"
-              }
-              next
+            /^[[:space:]]*buildTypes[[:space:]]*{/,/^[[:space:]]*}[[:space:]]*$/ {
+                next
             }
             { print }
-            ' android/app/build.gradle > android/app/build.gradle.new
+            ' android/app/build.gradle.backup > android/app/build.gradle
             
-            mv android/app/build.gradle.new android/app/build.gradle
+            # Clean up temporary files
+            rm -f android/app/build.gradle.signing android/app/build.gradle.backup
             
-            echo "✅ Gradle signing configuration updated safely"
+            echo "✅ Static signing configuration injected successfully"
             
-            # Verify the configuration was added correctly
-            echo "📋 Verifying signing configuration in build.gradle:"
-            if grep -A 10 "signingConfigs" android/app/build.gradle; then
-              echo "✅ Signing configuration successfully added"
+            # Verify the configuration was added
+            echo "📋 Verifying signing configuration:"
+            if grep -A 5 "signingConfigs" android/app/build.gradle; then
+              echo "✅ Signing configuration verification successful"
             else
-              echo "❌ Failed to add signing configuration - restoring backup"
-              mv android/app/build.gradle.backup android/app/build.gradle
+              echo "❌ Failed to verify signing configuration"
               exit 1
             fi
-            
-            # Clean up backup
-            rm -f android/app/build.gradle.backup
           else
             echo "❌ android/app/build.gradle not found - cannot configure signing"
             exit 1
           fi
 
-      - name: Build Signed APK with Environment Variables
+      - name: Build Signed APK with Gradle Properties (-P Direct Injection)
         working-directory: android
-        env:
-          KEYSTORE_FILE: ${{ github.workspace }}/android/${{ env.KEYSTORE_FILE }}
-          KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ env.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
         run: |
-          echo "🏗️ Building APK with environment variable signing (robust method)..."
+          echo "🏗️ Building APK with Gradle properties for signing (String.call() fix)..."
           chmod +x gradlew
           
-          echo "🔨 Building signed release APK..."
+          echo "🔨 Building signed release APK with -P flags..."
           ./gradlew clean assembleRelease \
             --no-daemon --stacktrace \
             -Pandroid.injected.versionName="${{ env.VERSION_TAG }}" \
-            -Pandroid.injected.versionCode="${{ github.run_number }}"
+            -Pandroid.injected.versionCode="${{ env.VERSION_CODE }}" \
+            -PLAMINATOR_STORE_FILE=${{ github.workspace }}/android/${{ env.KEYSTORE_FILE }} \
+            -PLAMINATOR_STORE_PASSWORD=${{ env.KEYSTORE_PASSWORD }} \
+            -PLAMINATOR_KEY_ALIAS=${{ env.KEY_ALIAS }} \
+            -PLAMINATOR_KEY_PASSWORD=${{ env.KEY_PASSWORD }}
           
           cd ..
           
@@ -471,13 +445,13 @@ jobs:
           echo "APK_FILE=$FINAL_NAME" >> $GITHUB_ENV
           echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
 
-      - name: Verify Signature Fingerprint (Consistency Check)
+      - name: Signature Fingerprint Gate (Critical Security Check)
         run: |
-          echo "🔍 Performing signature fingerprint verification for consistency..."
+          echo "🛡️ Executing signature fingerprint gate for consistency..."
           
           APK_FILE=$(find . -name "lamidash_*.apk" | head -n 1)
           if [ ! -f "$APK_FILE" ]; then
-            echo "❌ APK file not found for fingerprint verification"
+            echo "❌ APK file not found for fingerprint gate"
             exit 1
           fi
           
@@ -498,52 +472,62 @@ jobs:
             echo "📄 Current APK signature SHA-256:"
             echo "$CURRENT_FINGERPRINT"
             
-            # Compare with expected fingerprint if GitHub Secrets are configured
-            if [ -n "${{ secrets.SIGNING_FINGERPRINT }}" ]; then
-              echo "🔍 Comparing with expected signature fingerprint..."
-              EXPECTED_FINGERPRINT="${{ secrets.SIGNING_FINGERPRINT }}"
+            # FINGERPRINT GATE: Critical consistency check
+            if [ -n "${{ secrets.GOLDEN_FINGERPRINT }}" ]; then
+              echo "🚨 FINGERPRINT GATE ACTIVATED - Comparing with golden baseline..."
+              GOLDEN_FINGERPRINT="${{ secrets.GOLDEN_FINGERPRINT }}"
               
-              if [ "$CURRENT_FINGERPRINT" = "$EXPECTED_FINGERPRINT" ]; then
-                echo "✅ Signature fingerprint matches expected value - signing consistency verified"
+              echo "$GOLDEN_FINGERPRINT" > expected.sha256
+              echo "$CURRENT_FINGERPRINT" > current.sha256
+              
+              if diff -q expected.sha256 current.sha256 >/dev/null 2>&1; then
+                echo "✅ FINGERPRINT GATE PASSED - Signature matches golden baseline"
                 echo "🎯 This APK will seamlessly update existing installations"
+                echo "🔒 Signature consistency verified - build approved"
               else
-                echo "❌ SIGNATURE FINGERPRINT MISMATCH DETECTED"
-                echo "   Expected: $EXPECTED_FINGERPRINT"
-                echo "   Current:  $CURRENT_FINGERPRINT"
+                echo "❌ FINGERPRINT GATE FAILED - SIGNATURE MISMATCH DETECTED"
+                echo "   Golden (Expected): $GOLDEN_FINGERPRINT"
+                echo "   Current (Actual):  $CURRENT_FINGERPRINT"
                 echo ""
-                echo "🚨 CRITICAL: This APK will NOT update existing installations seamlessly"
-                echo "📋 This indicates a signing configuration problem"
+                echo "🚨 CRITICAL FAILURE: This APK will break existing installations"
+                echo "📋 Signing configuration has changed - UPDATE COMPATIBILITY LOST"
                 echo ""
                 
-                # Don't fail the build for bootstrap mode, but warn
+                # Fail the build on signature mismatch (strict gate)
                 if [ "${{ env.SIGNING_MODE }}" = "github-secrets-persistent" ]; then
-                  echo "💥 FAILING BUILD: Signature mismatch in persistent signing mode"
+                  echo "💥 BUILD TERMINATED: Golden fingerprint mismatch in persistent signing mode"
+                  echo "🔧 Fix: Verify keystore restoration and GitHub Secrets configuration"
                   exit 1
                 else
-                  echo "⚠️ WARNING: Bootstrap mode detected - signature mismatch expected"
-                  echo "🔧 To fix: Configure GitHub Secrets with correct keystore and fingerprint"
+                  echo "⚠️ WARNING: Bootstrap mode - signature mismatch expected on first run"
+                  echo "💡 Action: After verifying this build, set GOLDEN_FINGERPRINT secret to:"
+                  echo "   $CURRENT_FINGERPRINT"
                 fi
               fi
+              
+              # Clean up temp files
+              rm -f expected.sha256 current.sha256
             else
-              echo "📋 No expected fingerprint configured in GitHub Secrets"
-              echo "💡 TO ENABLE SIGNATURE VERIFICATION:"
-              echo "   Add SIGNING_FINGERPRINT secret with value: $CURRENT_FINGERPRINT"
+              echo "📋 No golden fingerprint configured - gate bypassed"
+              echo "💡 TO ENABLE FINGERPRINT GATE:"
+              echo "   Add GOLDEN_FINGERPRINT secret with value: $CURRENT_FINGERPRINT"
               echo ""
               
               if [ "${{ env.SIGNING_MODE }}" = "github-secrets-persistent" ]; then
-                echo "🎯 This is the first build with persistent signing - fingerprint established"
-                echo "✅ Store this fingerprint for future builds"
+                echo "🎯 First build with persistent signing - establishing golden baseline"
+                echo "🔑 Store this fingerprint as GOLDEN_FINGERPRINT for future builds"
               else
-                echo "⚠️ Bootstrap mode: This fingerprint will change on next build"
-                echo "🔧 Configure GitHub Secrets for consistent signing"
+                echo "⚠️ Bootstrap mode: fingerprint will change on next build"
+                echo "🔧 Configure GitHub Secrets for permanent baseline establishment"
               fi
             fi
             
-            # Export fingerprint for release notes
+            # Export fingerprint for release notes and logging
             echo "CURRENT_FINGERPRINT=$CURRENT_FINGERPRINT" >> $GITHUB_ENV
+            echo "🔍 Signature fingerprint exported for release documentation"
           else
-            echo "⚠️ apksigner not available - cannot verify signature fingerprint"
-            echo "CURRENT_FINGERPRINT=unknown" >> $GITHUB_ENV
+            echo "⚠️ apksigner not available - fingerprint gate disabled"
+            echo "CURRENT_FINGERPRINT=unavailable" >> $GITHUB_ENV
           fi
 
       - name: 🕵️ Analyze APK Contents
