@@ -61,9 +61,6 @@ jobs:
           npm list
           echo "--- End of NPM Dependency Tree ---"
 
-      - name: Generate App Icons and Splash Screen
-        run: npx @capacitor/assets generate --android
-
       - name: Prepare Web Directory for Capacitor
         run: |
           echo "🧹 Cleaning www directory..."
@@ -116,6 +113,43 @@ jobs:
           npx cap add android
           
           echo "✅ Capacitor initialization completed successfully"
+
+      - name: Generate App Icons and Splash Screen
+        run: |
+          echo "🎨 Generating app icons and splash screen..."
+          
+          # プラットフォーム存在確認
+          if [ ! -d "android" ]; then
+            echo "❌ Android platform not found - aborting icon generation"
+            exit 1
+          fi
+          
+          # ソースアセット確認
+          if [ -f "assets/icon.png" ] && [ -f "assets/splash.png" ]; then
+            echo "✅ Source assets found:"
+            echo "  📄 assets/icon.png ($(stat -f%z assets/icon.png 2>/dev/null || stat -c%s assets/icon.png) bytes)"
+            echo "  📄 assets/splash.png ($(stat -f%z assets/splash.png 2>/dev/null || stat -c%s assets/splash.png) bytes)"
+            
+            echo "🔨 Generating Android icons and splash screens..."
+            npx @capacitor/assets generate --android --verbose
+            
+            # 生成結果確認
+            if [ -d "android/app/src/main/res" ]; then
+              echo "✅ Icon generation successful! Generated files:"
+              find android/app/src/main/res -name "*ic_launcher*" -o -name "*splash*" | sort
+            else
+              echo "⚠️ Icon generation may have failed - res directory not found"
+            fi
+            
+            echo "✅ App icons and splash screen generated successfully"
+          else
+            echo "⚠️ Source assets not found (assets/icon.png or assets/splash.png missing)"
+            echo "📋 Available files in assets/:"
+            ls -la assets/ || echo "❌ No assets folder found"
+            echo "📋 Current directory contents:"
+            ls -la
+            exit 1
+          fi
 
       - name: Sync Capacitor
         run: |
