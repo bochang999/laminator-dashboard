@@ -152,12 +152,7 @@ jobs:
           if ! grep -q "signingConfigs" "$FILE"; then
             echo "📝 Adding signingConfigs to build.gradle..."
             awk '
-              /defaultConfig {/ { 
-                print; 
-                print "        signingConfig signingConfigs.release"; 
-                next 
-              }
-              /buildTypes {/ { 
+              /android {/ { 
                 print; 
                 print "    signingConfigs {"; 
                 print "        release {"; 
@@ -167,11 +162,24 @@ jobs:
                 print "            keyPassword MY_KEY_PASSWORD"; 
                 print "        }"; 
                 print "    }"; 
+                print ""; 
                 next 
+              }
+              /defaultConfig {/ { 
+                print; 
+                print "        signingConfig signingConfigs.release"; 
+                next 
+              }
+              /buildTypes {/ && /release {/ {
+                print;
+                getline;
+                print "            signingConfig signingConfigs.release";
+                print;
+                next
               }
               { print }
             ' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
-            echo "✅ Signing configuration injected"
+            echo "✅ Signing configuration injected with correct order"
           else
             echo "✅ Signing configuration already exists"
           fi

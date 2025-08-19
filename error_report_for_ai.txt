@@ -1,0 +1,178 @@
+# Ver.8.6 ビルドエラー報告書
+
+## 🚨 発生したエラー
+
+### エラー概要
+**場所**: android/app/build.gradle line 7  
+**エラー**: `Could not get unknown property 'release' for SigningConfig container`  
+**原因**: AWKスクリプトによるsigningConfigsの注入でGradle構文エラーが発生
+
+### 具体的エラーメッセージ
+```
+Build file '/home/runner/work/laminator-dashboard/laminator-dashboard/android/app/build.gradle' line: 7
+Could not get unknown property 'release' for SigningConfig container of type org.gradle.api.internal.FactoryNamedDomainObjectContainer.
+```
+
+## 📋 実行した修正内容（Ver.8.6）
+
+### 1. JDK 17→21への更新 ✅
+```yaml
+env:
+  JAVA_VERSION: '21'
+
+- name: Setup Java
+  uses: actions/setup-java@v4
+  with:
+    java-version: '21'
+```
+
+### 2. Android SDK API 35の明示インストール ✅
+```yaml
+- name: Install Android SDK packages
+  run: |
+    sdkmanager --install \
+      "platforms;android-35" \
+      "build-tools;35.0.0" \
+      "platform-tools"
+```
+
+### 3. SDKライセンス非対話承認 ✅
+```yaml
+- name: Accept Android licenses (non-interactive)
+  run: yes | sdkmanager --licenses
+```
+
+### 4. Android生成の順序一本化 ✅
+```yaml
+- name: Initialize Capacitor (once only)
+  run: |
+    rm -rf capacitor.config.* android ios electron
+    npx cap init "${{ env.APP_NAME }}" "${{ env.APP_ID }}" --web-dir="www"
+    npx cap add android
+```
+
+### 5. API 35最小変更 ✅
+```yaml
+- name: Force API 35 (minimal)
+  run: |
+    sed -i 's/compileSdkVersion = .*/compileSdkVersion = 35/' android/variables.gradle || true
+    sed -i 's/targetSdkVersion = .*/targetSdkVersion = 35/' android/variables.gradle || true
+```
+
+### 6. 署名固定化の実装 ❌ **←エラー原因**
+```yaml
+- name: Inject signing (keystore & gradle)
+  run: |
+    # keystore復元 (成功)
+    echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > android/app/release.keystore
+    
+    # gradle.properties追記 (成功)
+    cat >> android/gradle.properties <<'EOF'
+MY_STORE_FILE=app/release.keystore
+MY_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
+MY_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
+MY_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
+EOF
+    
+    # build.gradle修正 (失敗 - 構文エラー)
+    if ! grep -q "signingConfigs" "$FILE"; then
+      awk '
+        /defaultConfig {/ { 
+          print; 
+          print "        signingConfig signingConfigs.release"; 
+          next 
+        }
+        /buildTypes {/ { 
+          print; 
+          print "    signingConfigs {"; 
+          print "        release {"; 
+          print "            storeFile file(MY_STORE_FILE)"; 
+          print "            storePassword MY_STORE_PASSWORD"; 
+          print "            keyAlias MY_KEY_ALIAS"; 
+          print "            keyPassword MY_KEY_PASSWORD"; 
+          print "        }"; 
+          print "    }"; 
+          next 
+        }
+        { print }
+      ' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+    fi
+```
+
+## 🔍 問題の分析
+
+### AWKスクリプトの問題点
+1. **構文順序**: `signingConfigs`定義前に`signingConfig signingConfigs.release`を参照
+2. **Gradleスコープ**: `defaultConfig`内で`signingConfigs.release`が未定義
+3. **AWK挿入位置**: 正しいAndroid Gradleプラグインの構造に合致しない
+
+### 正常なGradle構文
+```gradle
+android {
+    signingConfigs {
+        release {
+            storeFile file('keystore.jks')
+            storePassword 'password'
+            keyAlias 'alias'
+            keyPassword 'password'
+        }
+    }
+    
+    defaultConfig {
+        signingConfig signingConfigs.release
+    }
+    
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
+    }
+}
+```
+
+## 📝 現在の状況
+
+### 成功した部分
+- JDK 21設定: `JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.8-9/x64`
+- Android SDK API 35インストール: 正常完了
+- ライセンス承認: 非対話で成功
+- Capacitor初期化: android/gradlew正常作成
+- キーストア復元: android/app/release.keystore作成成功
+- gradle.properties設定: MY_STORE_FILE等の設定成功
+
+### 失敗した部分
+- **build.gradle署名設定注入**: AWKスクリプトによる構文エラー
+
+## 🎯 解決が必要な課題
+
+1. **AWKスクリプト修正**: 正しいGradle構文での署名設定注入
+2. **構文順序**: signingConfigs定義→参照の順序確保
+3. **エラーハンドリング**: AWK失敗時の代替手法
+
+## 📊 ログ詳細
+
+### 環境情報
+```
+NODE_VERSION: 20
+JAVA_VERSION: 21
+JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.8-9/x64
+ANDROID_HOME: /usr/local/lib/android/sdk
+VERSION_TAG: 8.4.96
+SIGNING_MODE: bootstrap-temporary
+```
+
+### Gradle情報
+```
+Gradle 8.11.1
+Android Gradle Plugin: (Capacitorデフォルト)
+Build Tools: 35.0.0
+```
+
+## 🛠️ 次回修正方針
+
+1. **AWKスクリプト改良**: 正確なGradle構文生成
+2. **テンプレート方式**: 事前定義されたbuild.gradle差し替え
+3. **Gradle Properties方式**: signingConfigsをプロパティ経由で設定
+4. **段階的検証**: 各ステップでの構文チェック
+
+このエラーは署名固定化の実装部分のみが問題で、他の修正（JDK21、SDK35、Android生成一本化等）は全て正常に動作している。
