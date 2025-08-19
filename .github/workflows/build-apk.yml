@@ -212,9 +212,9 @@ jobs:
 
       - name: Set Version Information
         run: |
-          echo "📋 Setting version information for Ver.6.9 Capacitor Official Signing..."
-          VERSION_MAJOR="6"
-          VERSION_MINOR="9"
+          echo "📋 Setting version information for Ver.8.0 Advanced Signature System..."
+          VERSION_MAJOR="8"
+          VERSION_MINOR="0"
           VERSION_PATCH="${{ github.run_number }}"
           VERSION_TAG="$VERSION_MAJOR.$VERSION_MINOR.$VERSION_PATCH"
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
@@ -227,39 +227,87 @@ jobs:
           ./gradlew clean || echo "Clean skipped (first run)"
           cd ..
 
-      - name: Create Official Laminator Keystore (One-Time Migration)
+      - name: Restore Official Keystore from GitHub Secrets
         run: |
-          echo "🔑 Creating official Laminator keystore for consistent signing..."
+          echo "🔑 Configuring keystore for consistent APK signing..."
           cd android
           
-          # Create official keystore for future use (will be stored in GitHub Secrets)
-          if [ ! -f "laminator-official.keystore" ]; then
-            echo "🔧 Generating official Laminator keystore for long-term use..."
-            keytool -genkeypair -v -keystore laminator-official.keystore \
-              -alias laminator-official -keyalg RSA -keysize 4096 -validity 36500 \
-              -dname "CN=Laminator Dashboard Official,O=BochangDev,C=JP" \
-              -storepass laminator2025official -keypass laminator2025official
-            echo "✅ Official keystore created successfully"
+          # Check if GitHub Secrets are properly configured
+          if [ -n "${{ secrets.KEYSTORE_B64 }}" ] && [ -n "${{ secrets.KEYSTORE_PASSWORD }}" ] && [ -n "${{ secrets.KEY_ALIAS }}" ] && [ -n "${{ secrets.KEY_PASSWORD }}" ]; then
+            echo "✅ GitHub Secrets detected - restoring persistent keystore..."
             
-            # Display keystore fingerprint for Secrets setup
-            echo "📄 Keystore fingerprint (store this for verification):"
-            keytool -list -v -keystore laminator-official.keystore -alias laminator-official -storepass laminator2025official | grep "SHA256:"
+            # Restore keystore from GitHub Secrets
+            echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > laminator-official.keystore 2>/dev/null || \
+            echo "${{ secrets.KEYSTORE_B64 }}" | base64 --decode > laminator-official.keystore 2>/dev/null
             
-            # Convert to base64 for GitHub Secrets (display for manual setup)
-            echo "📋 Base64 for GitHub Secrets (KEYSTORE_B64):"
-            base64 -w 0 laminator-official.keystore 2>/dev/null || base64 laminator-official.keystore | tr -d '\n'
-            echo ""
+            # Verify keystore file was created
+            if [ ! -f "laminator-official.keystore" ]; then
+              echo "❌ Failed to create keystore file from Secrets"
+              exit 1
+            fi
+            
+            # Verify keystore integrity and alias
+            if keytool -list -keystore laminator-official.keystore -alias "${{ secrets.KEY_ALIAS }}" -storepass "${{ secrets.KEYSTORE_PASSWORD }}" >/dev/null 2>&1; then
+              echo "✅ Keystore restored and verified successfully"
+              echo "🔐 Using persistent keystore for consistent signing"
+            else
+              echo "❌ Keystore verification failed - alias '${{ secrets.KEY_ALIAS }}' not found or wrong password"
+              echo "📋 Available aliases in keystore:"
+              keytool -list -keystore laminator-official.keystore -storepass "${{ secrets.KEYSTORE_PASSWORD }}" | grep "Alias name:" || true
+              exit 1
+            fi
+            
+            # Set environment variables for persistent signing
+            echo "KEYSTORE_FILE=laminator-official.keystore" >> $GITHUB_ENV
+            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+            echo "SIGNING_MODE=github-secrets-persistent" >> $GITHUB_ENV
+            
           else
-            echo "✅ Using existing official keystore"
+            echo "⚠️ GitHub Secrets not configured - using bootstrap keystore"
+            echo "🚨 WARNING: This will create signature incompatibility with existing installations"
+            echo ""
+            echo "📋 TO FIX THIS PERMANENTLY:"
+            echo "   1. Generate permanent keystore locally:"
+            echo "      keytool -genkeypair -v -keystore laminator-official.keystore \\"
+            echo "        -alias laminator-official -keyalg RSA -keysize 4096 -validity 36500 \\"
+            echo "        -dname \"CN=Laminator Dashboard,O=BochangDev,C=JP\" \\"
+            echo "        -storepass [YOUR_PASSWORD] -keypass [YOUR_PASSWORD]"
+            echo ""
+            echo "   2. Encode keystore to base64:"
+            echo "      base64 -w 0 laminator-official.keystore   # Linux"
+            echo "      base64 laminator-official.keystore | tr -d '\\n'   # macOS"
+            echo ""
+            echo "   3. Add these GitHub Secrets to repository:"
+            echo "      KEYSTORE_B64: [base64 encoded keystore file]"
+            echo "      KEYSTORE_PASSWORD: [your keystore password]"
+            echo "      KEY_ALIAS: laminator-official"
+            echo "      KEY_PASSWORD: [your key password - usually same as keystore password]"
+            echo ""
+            
+            # Create bootstrap keystore for initial setup only
+            keytool -genkeypair -v -keystore laminator-bootstrap.keystore \
+              -alias laminator-bootstrap -keyalg RSA -keysize 4096 -validity 36500 \
+              -dname "CN=Laminator Dashboard Bootstrap,O=BochangDev,C=JP" \
+              -storepass bootstrap2025temp -keypass bootstrap2025temp
+            
+            echo "🏗️ Created bootstrap keystore (TEMPORARY - will cause update issues)"
+            
+            # Set environment variables for bootstrap signing
+            echo "KEYSTORE_FILE=laminator-bootstrap.keystore" >> $GITHUB_ENV
+            echo "KEYSTORE_PASSWORD=bootstrap2025temp" >> $GITHUB_ENV
+            echo "KEY_ALIAS=laminator-bootstrap" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=bootstrap2025temp" >> $GITHUB_ENV
+            echo "SIGNING_MODE=bootstrap-temporary" >> $GITHUB_ENV
           fi
           
-          # Set environment variables for build
-          echo "KEYSTORE_EXISTS=true" >> $GITHUB_ENV
-          echo "KEYSTORE_FILE=laminator-official.keystore" >> $GITHUB_ENV
-          echo "KEYSTORE_PASSWORD=laminator2025official" >> $GITHUB_ENV
-          echo "KEY_ALIAS=laminator-official" >> $GITHUB_ENV
-          echo "KEY_PASSWORD=laminator2025official" >> $GITHUB_ENV
-          echo "SIGNING_MODE=official-migration" >> $GITHUB_ENV
+          # Display current signing configuration
+          echo "📊 Current Signing Configuration:"
+          echo "   🔑 Keystore: $KEYSTORE_FILE"
+          echo "   👤 Alias: $KEY_ALIAS"  
+          echo "   📋 Mode: $SIGNING_MODE"
+          
           cd ..
 
       - name: Skip Golden Gradle Template (Not Needed for Capacitor Official Signing)
@@ -267,62 +315,83 @@ jobs:
           echo "ℹ️ Skipping golden template - using Capacitor official signing configuration instead..."
           echo "✅ Template step skipped for Capacitor methodology."
 
-      - name: Configure Robust Gradle Signing (Environment Variables)
+      - name: Configure Gradle Signing (Environment Variables + Validation)
         run: |
-          echo "🔧 Configuring build.gradle with robust environment variable signing..."
+          echo "🔧 Configuring build.gradle with validated environment variable signing..."
           
           if [ -f android/app/build.gradle ]; then
-            echo "📝 Updating build.gradle for environment variable signing system..."
+            echo "📝 Creating validated signing configuration..."
             
-            # 堅牢な環境変数ベース署名設定を作成
+            # Create robust environment variable-based signing configuration
             cat > android/app/build.gradle.signing << 'GRADLE_EOF'
           android {
               signingConfigs {
                   release {
-                      def sf = System.getenv("KEYSTORE_FILE")
-                      if (sf) {
-                          storeFile file(sf)
-                          storePassword System.getenv("KEYSTORE_PASSWORD")
-                          keyAlias System.getenv("KEY_ALIAS")
-                          keyPassword System.getenv("KEY_PASSWORD")
+                      // Validate all required environment variables are present
+                      def keystoreFile = System.getenv("KEYSTORE_FILE")
+                      def keystorePass = System.getenv("KEYSTORE_PASSWORD")
+                      def keyAlias = System.getenv("KEY_ALIAS")
+                      def keyPass = System.getenv("KEY_PASSWORD")
+                      
+                      if (keystoreFile && keystorePass && keyAlias && keyPass) {
+                          storeFile file(keystoreFile)
+                          storePassword keystorePass
+                          keyAlias keyAlias
+                          keyPassword keyPass
+                          println "✅ Gradle: Using custom keystore: ${keystoreFile}"
+                      } else {
+                          println "❌ Gradle: Missing signing environment variables"
+                          println "   KEYSTORE_FILE: ${keystoreFile ? 'SET' : 'MISSING'}"
+                          println "   KEYSTORE_PASSWORD: ${keystorePass ? 'SET' : 'MISSING'}"
+                          println "   KEY_ALIAS: ${keyAlias ? 'SET' : 'MISSING'}"
+                          println "   KEY_PASSWORD: ${keyPass ? 'SET' : 'MISSING'}"
+                          throw new GradleException("Signing configuration incomplete - cannot build signed APK")
                       }
                   }
                   debug {
-                      // 実機上書き検証を簡単にするためreleaseと同じ鍵を使用
+                      // Use same signing as release for update compatibility testing
                       initWith signingConfigs.release
+                      println "🔧 Gradle: Debug build using release signing for update compatibility"
                   }
               }
               
               buildTypes {
                   release {
                       signingConfig signingConfigs.release
+                      minifyEnabled false
+                      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
                   }
                   debug {
                       signingConfig signingConfigs.debug
+                      debuggable true
                   }
               }
           }
           GRADLE_EOF
             
-            # 既存のbuild.gradleに署名設定を統合
+            # Remove existing signing configurations to avoid conflicts
             if grep -q "signingConfigs" android/app/build.gradle; then
-              echo "🔄 Replacing existing signing config with robust version..."
-              # 既存のsigningConfigs設定を削除して新しいものに置換
-              sed -i '/signingConfigs {/,/^    }/d' android/app/build.gradle
-              sed -i '/buildTypes {/,/^    }/d' android/app/build.gradle
+              echo "🔄 Removing existing signing configurations..."
+              # More precise removal of existing signing configs
+              sed -i '/signingConfigs[[:space:]]*{/,/^[[:space:]]*}/d' android/app/build.gradle
+              sed -i '/buildTypes[[:space:]]*{/,/^[[:space:]]*}/d' android/app/build.gradle
             fi
             
-            echo "📝 Adding robust signing configuration to build.gradle..."
-            # android {ブロック内に署名設定を挿入
-            sed -i '/android {/r android/app/build.gradle.signing' android/app/build.gradle
+            # Insert new signing configuration into android block
+            echo "📝 Adding validated signing configuration to build.gradle..."
+            sed -i '/android[[:space:]]*{/r android/app/build.gradle.signing' android/app/build.gradle
             
-            echo "✅ build.gradle configured with robust environment variable signing"
+            echo "✅ Gradle signing configuration updated with validation"
             
-            # 設定確認のため、署名関連部分を表示
-            echo "📋 Current signing configuration:"
-            grep -A 20 "signingConfigs" android/app/build.gradle || echo "No signingConfigs found"
+            # Verify the configuration was added correctly
+            echo "📋 Verifying signing configuration in build.gradle:"
+            grep -A 25 "signingConfigs" android/app/build.gradle | head -30 || echo "⚠️ Could not locate signingConfigs section"
+            
+            # Clean up temporary file
+            rm -f android/app/build.gradle.signing
           else
-            echo "⚠️ build.gradle not found, skipping configuration"
+            echo "❌ android/app/build.gradle not found - cannot configure signing"
+            exit 1
           fi
 
       - name: Build Signed APK with Environment Variables
@@ -378,42 +447,77 @@ jobs:
 
       - name: Verify Signature Fingerprint (Consistency Check)
         run: |
-          echo "🔍 Extracting and verifying signature fingerprint..."
+          echo "🔍 Performing signature fingerprint verification for consistency..."
           
           APK_FILE=$(find . -name "lamidash_*.apk" | head -n 1)
-          if [ -f "$APK_FILE" ]; then
-            echo "📋 APK: $APK_FILE"
-            
-            # Extract signature fingerprint
-            echo "🔐 Extracting signature fingerprint..."
-            if command -v apksigner >/dev/null 2>&1; then
-              apksigner verify --print-certs "$APK_FILE" | sed -n 's/.*SHA-256 digest: //p' > current_fingerprint.txt
-              
-              # Display current fingerprint
-              echo "📄 Current APK signature SHA-256:"
-              cat current_fingerprint.txt
-              
-              # Store fingerprint for future reference (first build will set the baseline)
-              echo "💡 Store this fingerprint in GitHub Secrets as SIGNING_FINGERPRINT for future verification"
-              
-              # For now, just display - TODO: Add actual comparison when SIGNING_FINGERPRINT secret is set
-              # Future enhancement: Compare with stored fingerprint
-              # echo "🔍 Comparing with expected fingerprint..."
-              # if [ ! -z "${{ secrets.SIGNING_FINGERPRINT }}" ]; then
-              #   echo "${{ secrets.SIGNING_FINGERPRINT }}" > expected_fingerprint.txt
-              #   if diff -q expected_fingerprint.txt current_fingerprint.txt; then
-              #     echo "✅ Signature fingerprint matches expected value"
-              #   else
-              #     echo "❌ Signature fingerprint mismatch - stopping build"
-              #     exit 1
-              #   fi
-              # fi
-            else
-              echo "⚠️ apksigner not available for fingerprint verification"
-            fi
-          else
+          if [ ! -f "$APK_FILE" ]; then
             echo "❌ APK file not found for fingerprint verification"
             exit 1
+          fi
+          
+          echo "📋 Analyzing APK: $APK_FILE"
+          echo "🔧 Signing Mode: ${{ env.SIGNING_MODE }}"
+          
+          # Extract signature fingerprint
+          if command -v apksigner >/dev/null 2>&1; then
+            echo "🔐 Extracting signature fingerprint..."
+            apksigner verify --print-certs "$APK_FILE" 2>/dev/null | sed -n 's/.*SHA-256 digest: //p' > current_fingerprint.txt
+            
+            if [ ! -s current_fingerprint.txt ]; then
+              echo "❌ Failed to extract signature fingerprint"
+              exit 1
+            fi
+            
+            CURRENT_FINGERPRINT=$(cat current_fingerprint.txt | tr -d ' \n')
+            echo "📄 Current APK signature SHA-256:"
+            echo "$CURRENT_FINGERPRINT"
+            
+            # Compare with expected fingerprint if GitHub Secrets are configured
+            if [ -n "${{ secrets.SIGNING_FINGERPRINT }}" ]; then
+              echo "🔍 Comparing with expected signature fingerprint..."
+              EXPECTED_FINGERPRINT="${{ secrets.SIGNING_FINGERPRINT }}"
+              
+              if [ "$CURRENT_FINGERPRINT" = "$EXPECTED_FINGERPRINT" ]; then
+                echo "✅ Signature fingerprint matches expected value - signing consistency verified"
+                echo "🎯 This APK will seamlessly update existing installations"
+              else
+                echo "❌ SIGNATURE FINGERPRINT MISMATCH DETECTED"
+                echo "   Expected: $EXPECTED_FINGERPRINT"
+                echo "   Current:  $CURRENT_FINGERPRINT"
+                echo ""
+                echo "🚨 CRITICAL: This APK will NOT update existing installations seamlessly"
+                echo "📋 This indicates a signing configuration problem"
+                echo ""
+                
+                # Don't fail the build for bootstrap mode, but warn
+                if [ "${{ env.SIGNING_MODE }}" = "github-secrets-persistent" ]; then
+                  echo "💥 FAILING BUILD: Signature mismatch in persistent signing mode"
+                  exit 1
+                else
+                  echo "⚠️ WARNING: Bootstrap mode detected - signature mismatch expected"
+                  echo "🔧 To fix: Configure GitHub Secrets with correct keystore and fingerprint"
+                fi
+              fi
+            else
+              echo "📋 No expected fingerprint configured in GitHub Secrets"
+              echo "💡 TO ENABLE SIGNATURE VERIFICATION:"
+              echo "   Add SIGNING_FINGERPRINT secret with value: $CURRENT_FINGERPRINT"
+              echo ""
+              
+              if [ "${{ env.SIGNING_MODE }}" = "github-secrets-persistent" ]; then
+                echo "🎯 This is the first build with persistent signing - fingerprint established"
+                echo "✅ Store this fingerprint for future builds"
+              else
+                echo "⚠️ Bootstrap mode: This fingerprint will change on next build"
+                echo "🔧 Configure GitHub Secrets for consistent signing"
+              fi
+            fi
+            
+            # Export fingerprint for release notes
+            echo "CURRENT_FINGERPRINT=$CURRENT_FINGERPRINT" >> $GITHUB_ENV
+          else
+            echo "⚠️ apksigner not available - cannot verify signature fingerprint"
+            echo "CURRENT_FINGERPRINT=unknown" >> $GITHUB_ENV
           fi
 
       - name: 🕵️ Analyze APK Contents
@@ -447,74 +551,103 @@ jobs:
           body: |
             # 🎛️ Laminator Dashboard ${{ env.VERSION_TAG }}
             
-            **🚨 SIGNATURE MIGRATION VERSION** - One-Time Manual Reinstall Required
+            ## 🔐 Advanced Signature System Implementation
             
-            ## ⚠️ IMPORTANT MIGRATION NOTICE
-            This version introduces a **new official signing system** that resolves signature consistency issues.
-            **EXISTING USERS**: You must uninstall the old version before installing this APK (one-time only).
-            **FUTURE UPDATES**: After this migration, all subsequent updates will be seamless.
+            **Signing Mode**: `${{ env.SIGNING_MODE }}`  
+            **Signature SHA-256**: `${{ env.CURRENT_FINGERPRINT }}`
             
-            ## 📥 Installation Instructions
-            ### For EXISTING Users (Ver.5.0 - Ver.6.9.86):
-            1. 💾 **BACKUP YOUR DATA** using the app's backup function before proceeding
-            2. 🗑️ Uninstall the current Laminator Dashboard app
-            3. ⬇️ Download and install this new APK file
-            4. 📄 Restore your data using the app's restore function
+            ### 📋 Installation Instructions
             
-            ### For NEW Users:
+            #### 🎯 If Signing Mode = `github-secrets-persistent`:
+            **✅ SEAMLESS UPDATES ENABLED** - This APK should update existing installations without uninstalling.
+            
+            #### ⚠️ If Signing Mode = `bootstrap-temporary`:
+            **🚨 ONE-TIME MIGRATION REQUIRED** - You must uninstall the existing app before installing this version.
+            
+            **Migration Steps for Bootstrap Mode**:
+            1. 💾 **BACKUP YOUR DATA** using the app's backup function
+            2. 🗑️ Uninstall existing Laminator Dashboard
+            3. ⬇️ Download and install this APK
+            4. 📄 Restore your data using the backup function
+            
+            #### 🆕 For New Users:
             1. ⬇️ Download the APK file
-            2. 🔓 Enable "Install from Unknown Sources" on your Android device  
-            3. 📱 Tap the APK file to install
+            2. 🔓 Enable "Install from Unknown Sources"
+            3. 📱 Install the APK
             
-            ## ✅ **FUTURE UPDATES GUARANTEED**: After this migration, all future versions will update seamlessly!
+            ## 🛡️ Advanced Signature Management System
             
-            ## 🔧 Signature Migration & Long-term Consistency Implementation
-            - 🔑 **Official Keystore Created**: New RSA-4096 keystore for long-term consistent signing
-            - 🛡️ **Environment Variable Signing**: Robust Gradle signingConfigs using environment variables
-            - 📋 **Signature Fingerprint Verification**: Automated SHA-256 consistency checks in CI/CD
-            - 🔄 **Debug/Release Unified**: Same keystore for both build types (simplified testing)
-            - 🎯 **Migration Strategy**: Addresses Ver.5.0 → Ver.6.9+ signature incompatibility
-            - ✅ **Future-Proof**: Consistent signing for all subsequent versions
-            - ⏰ **Time Calculator** - Production time and completion prediction
-            - 🎞️ **Film Session Management** - Consumption simulation  
-            - 📋 **Job Management** - Real-time progress tracking
-            - 📊 **Report Generation** - Work efficiency analysis
-            - 🌐 **PWA Support** - Offline operation and home screen installation
-            - 📦 **Lightweight Build** - Optimized 3MB APK size
+            ### 🔑 Keystore Persistence Technology
+            - **GitHub Secrets Integration**: Keystore stored as base64-encoded secret
+            - **Environment Variable Validation**: Full validation chain in Gradle
+            - **Signature Fingerprint Verification**: Automated consistency checking
+            - **Bootstrap Fallback**: Temporary keystore for initial setup
+            - **Cross-Build Consistency**: Same signature across all CI runs
+            
+            ### 📊 Signature Verification Results
+            ```
+            Current Fingerprint: ${{ env.CURRENT_FINGERPRINT }}
+            Signing Mode: ${{ env.SIGNING_MODE }}
+            Keystore Type: ${{ env.SIGNING_MODE == 'github-secrets-persistent' && 'Persistent (GitHub Secrets)' || 'Temporary Bootstrap' }}
+            Update Compatibility: ${{ env.SIGNING_MODE == 'github-secrets-persistent' && '✅ Seamless Updates' || '⚠️ Manual Reinstall Required' }}
+            ```
+            
+            ### 🔧 For Developers: Setting Up Persistent Signing
+            
+            If this build shows `bootstrap-temporary` mode, configure GitHub Secrets:
+            
+            ```bash
+            # 1. Generate permanent keystore
+            keytool -genkeypair -v -keystore laminator-official.keystore \
+              -alias laminator-official -keyalg RSA -keysize 4096 -validity 36500 \
+              -dname "CN=Laminator Dashboard,O=BochangDev,C=JP" \
+              -storepass YOUR_PASSWORD -keypass YOUR_PASSWORD
+            
+            # 2. Encode to base64
+            base64 -w 0 laminator-official.keystore   # Linux
+            base64 laminator-official.keystore | tr -d '\n'   # macOS
+            
+            # 3. Add GitHub Secrets:
+            KEYSTORE_B64: [base64 encoded keystore]
+            KEYSTORE_PASSWORD: [your password]
+            KEY_ALIAS: laminator-official  
+            KEY_PASSWORD: [your key password]
+            SIGNING_FINGERPRINT: ${{ env.CURRENT_FINGERPRINT }}
+            ```
+            
+            ## 🚀 App Features
+            - ⏰ **Production Time Calculator** - Accurate completion predictions
+            - 🎞️ **Film Session Management** - Material consumption tracking
+            - 📋 **Real-time Job Tracking** - Live progress monitoring
+            - 📊 **Efficiency Analytics** - Comprehensive work reports
+            - 🌐 **PWA Technology** - Offline functionality + home screen install
+            - 💾 **Data Backup/Restore** - Full data preservation system
             
             ## 🔧 Technical Specifications
+            - **Framework**: Capacitor 7.4.2 + Android API 35
             - **Build Environment**: Node.js ${{ env.NODE_VERSION }} + Java ${{ env.JAVA_VERSION }}
-            - **Framework**: Capacitor 7 + Android API 35 (VANILLA_ICE_CREAM)
-            - **Build Method**: Environment Variable Signing + RSA-4096 Official Keystore
-            - **APK Type**: ${{ env.BUILD_TYPE == 'release' && '🔐 Release Signed' || '🔧 Debug Build' }}
-            - **Signing Method**: ✅ Capacitor Official Build-Stage Signing (correct approach)
-            - **Compatibility**: Android 7.0+ recommended
-            
-            ## 🎯 Breakthrough Discovery & Implementation
-            - 🔍 **Root Cause Found**: Previous APK post-processing approach was fundamentally wrong for Capacitor
-            - 📚 **MCP Research**: Discovered Capacitor has dedicated `npx cap build` signing options
-            - ⚡ **Correct Implementation**: `npx cap build android --keystorepath --keystorepass --keystorealias`
-            - 🔨 **Gradle signingConfigs**: Proper build-stage signing instead of APK repackaging
-            - ✅ **No APK Post-Processing**: Eliminates ZIP compression, CRC, and resources.arsc issues
-            - 🏗️ **Build-Stage Consistency**: Signing applied during compilation, not after
-            - 📐 **Architecture Correct**: Follows Capacitor official methodology
+            - **Signing Method**: ${{ env.SIGNING_MODE == 'github-secrets-persistent' && '🔐 GitHub Secrets Persistent' || '🏗️ Bootstrap Temporary' }}
+            - **APK Type**: ${{ env.BUILD_TYPE == 'release' && '🔐 Release Build' || '🔧 Debug Build' }}
+            - **Architecture**: Environment Variable + Gradle Validation Chain
+            - **Compatibility**: Android 7.0+ (API 24+)
             
             ## 📈 Build Information
             - **Version**: ${{ env.VERSION_TAG }}
             - **Build Number**: ${{ github.run_number }}
-            - **Build Type**: ${{ env.BUILD_TYPE }}
-            - **Signing Method**: ✅ Capacitor Official Build-Stage Signing
+            - **Signature**: ${{ env.CURRENT_FINGERPRINT }}
+            - **Build Mode**: ${{ env.SIGNING_MODE }}
             - **Commit**: ${{ github.sha }}
             
-            ## 🎓 Technical Learning
-            - **Previous Approach**: APK post-processing with ZIP repackaging (RecipeBox method)
-            - **Discovery**: RecipeBox method works for BeeWare/Briefcase, not Capacitor direct builds
-            - **Correct Approach**: Capacitor's dedicated build-time signing options
-            - **Key Insight**: Our entire APK post-processing was wrong for Capacitor framework
+            ## 🎯 Signature System Advantages
+            - **Permanent Solution**: Once configured, works forever
+            - **CI/CD Integration**: Full automation with validation
+            - **Update Compatibility**: Seamless APK updates for users
+            - **Fingerprint Verification**: Prevents accidental signature breaks
+            - **Developer Friendly**: Clear setup instructions and debugging
             
             ---
-            🤖 **Auto Build**: GitHub Actions (Capacitor-Official-Signing)  
+            🤖 **Auto Build**: GitHub Actions Advanced Signature System  
             📅 **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')  
-            🏆 **Milestone**: Discovered and implemented correct Capacitor signing methodology
+            🏆 **Achievement**: Complete signature consistency solution implemented
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
