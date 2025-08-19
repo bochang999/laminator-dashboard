@@ -212,9 +212,9 @@ jobs:
 
       - name: Set Version Information
         run: |
-          echo "📋 Setting version information for Ver.8.1 Advanced Signature System - Gradle Fix..."
+          echo "📋 Setting version information for Ver.8.2 Advanced Signature System - Safe Gradle..."
           VERSION_MAJOR="8"
-          VERSION_MINOR="1"
+          VERSION_MINOR="2"
           VERSION_PATCH="${{ github.run_number }}"
           VERSION_TAG="$VERSION_MAJOR.$VERSION_MINOR.$VERSION_PATCH"
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
@@ -315,80 +315,106 @@ jobs:
           echo "ℹ️ Skipping golden template - using Capacitor official signing configuration instead..."
           echo "✅ Template step skipped for Capacitor methodology."
 
-      - name: Configure Gradle Signing (Environment Variables + Validation)
+      - name: Configure Gradle Signing (Safe Append Method)
         run: |
-          echo "🔧 Configuring build.gradle with validated environment variable signing..."
+          echo "🔧 Configuring build.gradle with safe signing configuration append..."
           
           if [ -f android/app/build.gradle ]; then
-            echo "📝 Creating validated signing configuration..."
+            echo "📝 Backing up original build.gradle..."
+            cp android/app/build.gradle android/app/build.gradle.backup
             
-            # Create robust environment variable-based signing configuration
-            cat > android/app/build.gradle.signing << 'GRADLE_EOF'
-          android {
-              signingConfigs {
-                  release {
-                      // Validate all required environment variables are present
-                      def keystoreFilePath = System.getenv("KEYSTORE_FILE")
-                      def keystorePassword = System.getenv("KEYSTORE_PASSWORD")
-                      def keyAliasName = System.getenv("KEY_ALIAS")
-                      def keyPassword = System.getenv("KEY_PASSWORD")
-                      
-                      if (keystoreFilePath && keystorePassword && keyAliasName && keyPassword) {
-                          storeFile file(keystoreFilePath)
-                          storePassword keystorePassword
-                          keyAlias keyAliasName
-                          keyPassword keyPassword
-                          println "✅ Gradle: Using custom keystore: ${keystoreFilePath}"
-                      } else {
-                          println "❌ Gradle: Missing signing environment variables"
-                          println "   KEYSTORE_FILE: ${keystoreFilePath ? 'SET' : 'MISSING'}"
-                          println "   KEYSTORE_PASSWORD: ${keystorePassword ? 'SET' : 'MISSING'}"
-                          println "   KEY_ALIAS: ${keyAliasName ? 'SET' : 'MISSING'}"
-                          println "   KEY_PASSWORD: ${keyPassword ? 'SET' : 'MISSING'}"
-                          throw new GradleException("Signing configuration incomplete - cannot build signed APK")
-                      }
-                  }
-                  debug {
-                      // Use same signing as release for update compatibility testing
-                      initWith signingConfigs.release
-                      println "🔧 Gradle: Debug build using release signing for update compatibility"
-                  }
-              }
-              
-              buildTypes {
-                  release {
-                      signingConfig signingConfigs.release
-                      minifyEnabled false
-                      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-                  }
-                  debug {
-                      signingConfig signingConfigs.debug
-                      debuggable true
-                  }
-              }
-          }
-          GRADLE_EOF
-            
-            # Remove existing signing configurations to avoid conflicts
+            echo "🔍 Checking existing build.gradle structure..."
             if grep -q "signingConfigs" android/app/build.gradle; then
-              echo "🔄 Removing existing signing configurations..."
-              # More precise removal of existing signing configs
-              sed -i '/signingConfigs[[:space:]]*{/,/^[[:space:]]*}/d' android/app/build.gradle
-              sed -i '/buildTypes[[:space:]]*{/,/^[[:space:]]*}/d' android/app/build.gradle
+              echo "⚠️ Existing signingConfigs found - will replace them"
+              
+              # Remove only the signing-related sections, preserving everything else
+              sed -i '/signingConfigs[[:space:]]*{/,/^[[:space:]]*}[[:space:]]*$/d' android/app/build.gradle
+              sed -i 's/signingConfig[[:space:]]*signingConfigs\.[a-zA-Z]*/\/\/ signingConfig removed - will be added via environment variables/g' android/app/build.gradle
             fi
             
-            # Insert new signing configuration into android block
-            echo "📝 Adding validated signing configuration to build.gradle..."
-            sed -i '/android[[:space:]]*{/r android/app/build.gradle.signing' android/app/build.gradle
+            echo "📝 Adding environment variable-based signing configuration..."
             
-            echo "✅ Gradle signing configuration updated with validation"
+            # Find the android block and add signing configuration right after it
+            awk '
+            /^[[:space:]]*android[[:space:]]*{/ {
+              print $0
+              print ""
+              print "    signingConfigs {"
+              print "        release {"
+              print "            // Environment variable-based signing configuration"
+              print "            def keystoreFilePath = System.getenv(\"KEYSTORE_FILE\")"
+              print "            def keystorePassword = System.getenv(\"KEYSTORE_PASSWORD\")"  
+              print "            def keyAliasName = System.getenv(\"KEY_ALIAS\")"
+              print "            def keyPassword = System.getenv(\"KEY_PASSWORD\")"
+              print ""
+              print "            if (keystoreFilePath && keystorePassword && keyAliasName && keyPassword) {"
+              print "                storeFile file(keystoreFilePath)"
+              print "                storePassword keystorePassword"
+              print "                keyAlias keyAliasName"
+              print "                keyPassword keyPassword"
+              print "                println \"✅ Gradle: Using custom keystore: ${keystoreFilePath}\""
+              print "            } else {"
+              print "                println \"❌ Gradle: Missing signing environment variables\""
+              print "                println \"   KEYSTORE_FILE: ${keystoreFilePath ? 'SET' : 'MISSING'}\""
+              print "                println \"   KEYSTORE_PASSWORD: ${keystorePassword ? 'SET' : 'MISSING'}\""
+              print "                println \"   KEY_ALIAS: ${keyAliasName ? 'SET' : 'MISSING'}\""
+              print "                println \"   KEY_PASSWORD: ${keyPassword ? 'SET' : 'MISSING'}\""
+              print "                throw new GradleException(\"Signing configuration incomplete - cannot build signed APK\")"
+              print "            }"
+              print "        }"
+              print "        debug {"
+              print "            // Use same signing as release for update compatibility"
+              print "            initWith signingConfigs.release"
+              print "            println \"🔧 Gradle: Debug build using release signing for update compatibility\""
+              print "        }"
+              print "    }"
+              print ""
+              next
+            }
+            /^[[:space:]]*buildTypes[[:space:]]*{/ {
+              print $0
+              print "        release {"
+              print "            signingConfig signingConfigs.release"
+              print "            minifyEnabled false"
+              print "            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'"
+              print "        }"
+              print "        debug {"
+              print "            signingConfig signingConfigs.debug"
+              print "            debuggable true"
+              print "        }"
+              # Skip the original buildTypes content
+              in_build_types = 1
+              brace_count = 1
+              next
+            }
+            in_build_types == 1 {
+              if ($0 ~ /{/) brace_count++
+              if ($0 ~ /}/) brace_count--
+              if (brace_count == 0) {
+                in_build_types = 0
+                print "    }"
+              }
+              next
+            }
+            { print }
+            ' android/app/build.gradle > android/app/build.gradle.new
+            
+            mv android/app/build.gradle.new android/app/build.gradle
+            
+            echo "✅ Gradle signing configuration updated safely"
             
             # Verify the configuration was added correctly
             echo "📋 Verifying signing configuration in build.gradle:"
-            grep -A 25 "signingConfigs" android/app/build.gradle | head -30 || echo "⚠️ Could not locate signingConfigs section"
+            if grep -A 10 "signingConfigs" android/app/build.gradle; then
+              echo "✅ Signing configuration successfully added"
+            else
+              echo "❌ Failed to add signing configuration - restoring backup"
+              mv android/app/build.gradle.backup android/app/build.gradle
+              exit 1
+            fi
             
-            # Clean up temporary file
-            rm -f android/app/build.gradle.signing
+            # Clean up backup
+            rm -f android/app/build.gradle.backup
           else
             echo "❌ android/app/build.gradle not found - cannot configure signing"
             exit 1
