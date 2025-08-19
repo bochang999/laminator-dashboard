@@ -13,7 +13,7 @@ jobs:
 
     env:
       NODE_VERSION: '20'
-      JAVA_VERSION: '17'
+      JAVA_VERSION: '21'
       APP_ID: com.bochang.laminator
       APP_NAME: 'Laminator Dashboard'
 
@@ -30,46 +30,55 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
+          java-version: '21'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Accept Android licenses
-        run: yes | sdkmanager --licenses >/dev/null
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager --install \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "platform-tools"
+
+      - name: Accept Android licenses (non-interactive)
+        run: yes | sdkmanager --licenses
 
       - name: Install dependencies
         run: npm install
 
-      - name: Build web assets
+      - name: Build web assets (recursive copy)
         run: |
           echo "📦 Preparing web assets for Capacitor..."
-          mkdir -p www/assets
-          cp -r *.html *.css *.js *.json www/ 2>/dev/null || true
-          if [ -f "assets/icon.png" ]; then
-            cp assets/icon.png www/assets/icon.png
-            echo "✅ Master icon copied"
-          fi
-          if [ -f "assets/splash.png" ]; then
-            cp assets/splash.png www/assets/splash.png
-            echo "✅ Splash screen copied"
-          fi
+          rm -rf www && mkdir -p www
+          
+          # Recursive copy with exclusions
+          rsync -a --delete \
+            --exclude='.git' --exclude='.github' --exclude='android' \
+            --exclude='node_modules' --exclude='*.log' \
+            ./ www/
+          
+          echo "✅ Web assets copied recursively to www/"
+          ls -la www/ | head -10
 
-      - name: Capacitor init (idempotent)
+      - name: Initialize Capacitor (once only)
         run: |
-          if [ ! -f "capacitor.config.ts" ]; then
-            npx cap init "${{ env.APP_NAME }}" "${{ env.APP_ID }}" --web-dir=www
+          echo "🔄 Cleaning previous Capacitor setup..."
+          rm -rf capacitor.config.* android ios electron
+          
+          echo "📱 Initializing Capacitor with Android..."
+          npx cap init "${{ env.APP_NAME }}" "${{ env.APP_ID }}" --web-dir="www"
+          npx cap add android
+          
+          echo "🔍 Verifying android/gradlew exists..."
+          if [ -f "android/gradlew" ]; then
+            echo "✅ android/gradlew created successfully"
+            chmod +x android/gradlew
           else
-            echo "Capacitor config exists, skipping init"
-          fi
-
-      - name: Add Android platform if missing
-        run: |
-          if [ ! -d android ]; then
-            npx cap add android
-            echo "✅ Android platform added"
-          else
-            echo "✅ android/ exists"
+            echo "❌ android/gradlew NOT found - Capacitor add failed"
+            ls -la android/ || echo "android/ directory doesn't exist"
+            exit 1
           fi
 
       - name: Generate icons & splash (after android/)
@@ -81,8 +90,15 @@ jobs:
             echo "⚠️ Source assets missing, skipping icon generation"
           fi
 
-      - name: Sync to Android project
+      - name: Sync Capacitor
         run: npx cap sync android
+
+      - name: Force API 35 (minimal)
+        run: |
+          echo "📱 Setting compileSdk and targetSdk to 35..."
+          sed -i 's/compileSdkVersion = .*/compileSdkVersion = 35/' android/variables.gradle || true
+          sed -i 's/targetSdkVersion = .*/targetSdkVersion = 35/' android/variables.gradle || true
+          echo "✅ API 35 configured"
 
       - name: Set Version Information
         run: |
@@ -93,55 +109,104 @@ jobs:
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
           echo "✅ Version tag set to: $VERSION_TAG"
 
-      - name: Restore keystore (Secrets)
-        working-directory: android
+      - name: Inject signing (keystore & gradle)
         run: |
+          echo "🔑 Setting up signing configuration..."
+          
           if [ -n "${{ secrets.KEYSTORE_B64 }}" ]; then
-            echo "🔑 Restoring keystore from Secrets..."
-            echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > laminator-official.jks 2>/dev/null || \
-            echo "${{ secrets.KEYSTORE_B64 }}" | base64 --decode > laminator-official.jks 2>/dev/null
+            echo "📦 Restoring fixed keystore from Secrets..."
+            echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > android/app/release.keystore
             
-            if [ -f "laminator-official.jks" ]; then
-              echo "✅ Keystore restored successfully"
-              echo "KEYSTORE_FILE=laminator-official.jks" >> $GITHUB_ENV
-              echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
-              echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
-              echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
-              echo "SIGNING_MODE=github-secrets-persistent" >> $GITHUB_ENV
-            else
-              echo "❌ Failed to restore keystore"
-              exit 1
-            fi
+            # Add signing config to gradle.properties
+            cat >> android/gradle.properties <<'EOF'
+          MY_STORE_FILE=app/release.keystore
+          MY_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
+          MY_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
+          MY_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
+          EOF
+          
+            echo "SIGNING_MODE=github-secrets-persistent" >> $GITHUB_ENV
           else
-            echo "⚠️ Creating bootstrap keystore..."
-            keytool -genkeypair -v -keystore laminator-bootstrap.jks \
-              -alias laminator-bootstrap -keyalg RSA -keysize 4096 -validity 36500 \
-              -dname "CN=Laminator Dashboard Bootstrap,O=BochangDev,C=JP" \
-              -storepass bootstrap2025temp -keypass bootstrap2025temp
+            echo "⚠️ No fixed keystore found - creating temporary one"
+            echo "🚨 WARNING: This will cause update conflicts for existing users"
             
-            echo "KEYSTORE_FILE=laminator-bootstrap.jks" >> $GITHUB_ENV
-            echo "KEYSTORE_PASSWORD=bootstrap2025temp" >> $GITHUB_ENV
-            echo "KEY_ALIAS=laminator-bootstrap" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=bootstrap2025temp" >> $GITHUB_ENV
+            # Create temporary keystore
+            keytool -genkeypair -v -keystore android/app/release.keystore \
+              -alias laminator-temp -keyalg RSA -keysize 2048 -validity 365 \
+              -dname "CN=Laminator Temp,O=BochangDev,C=JP" \
+              -storepass temp2025 -keypass temp2025
+            
+            # Add temporary signing config
+            cat >> android/gradle.properties <<'EOF'
+          MY_STORE_FILE=app/release.keystore
+          MY_STORE_PASSWORD=temp2025
+          MY_KEY_ALIAS=laminator-temp
+          MY_KEY_PASSWORD=temp2025
+          EOF
+          
             echo "SIGNING_MODE=bootstrap-temporary" >> $GITHUB_ENV
           fi
+          
+          # Inject signingConfigs to app/build.gradle (if not exists)
+          FILE=android/app/build.gradle
+          if ! grep -q "signingConfigs" "$FILE"; then
+            echo "📝 Adding signingConfigs to build.gradle..."
+            awk '
+              /defaultConfig {/ { 
+                print; 
+                print "        signingConfig signingConfigs.release"; 
+                next 
+              }
+              /buildTypes {/ { 
+                print; 
+                print "    signingConfigs {"; 
+                print "        release {"; 
+                print "            storeFile file(MY_STORE_FILE)"; 
+                print "            storePassword MY_STORE_PASSWORD"; 
+                print "            keyAlias MY_KEY_ALIAS"; 
+                print "            keyPassword MY_KEY_PASSWORD"; 
+                print "        }"; 
+                print "    }"; 
+                next 
+              }
+              { print }
+            ' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+            echo "✅ Signing configuration injected"
+          else
+            echo "✅ Signing configuration already exists"
+          fi
 
-      - name: Build signed release (-P props only)
+      - name: Bump versionCode (optional)
+        run: |
+          APP_GRADLE=android/app/build.gradle
+          if grep -q "versionCode" "$APP_GRADLE"; then
+            CUR=$(grep -o "versionCode [0-9]\+" "$APP_GRADLE" | awk '{print $2}')
+            NEW=$((CUR+1))
+            sed -i "s/versionCode [0-9]\+/versionCode ${NEW}/" "$APP_GRADLE"
+            echo "✅ versionCode updated: $CUR -> $NEW"
+          else
+            echo "⚠️ versionCode not found in build.gradle"
+          fi
+
+      - name: Build signed release
         working-directory: android
         run: |
-          echo "🏗️ Building signed APK with -P flags (no file modification)..."
-          chmod +x gradlew
-          ./gradlew clean assembleRelease --no-daemon --stacktrace \
-            -PLAMINATOR_STORE_FILE="${{ github.workspace }}/android/${{ env.KEYSTORE_FILE }}" \
-            -PLAMINATOR_STORE_PASSWORD="${{ env.KEYSTORE_PASSWORD }}" \
-            -PLAMINATOR_KEY_ALIAS="${{ env.KEY_ALIAS }}" \
-            -PLAMINATOR_KEY_PASSWORD="${{ env.KEY_PASSWORD }}" \
-            -Pandroid.injected.versionCode="${{ github.run_number }}" \
-            -Pandroid.injected.versionName="${{ env.VERSION_TAG }}"
+          echo "🏗️ Building signed APK with injected keystore..."
+          ./gradlew clean assembleRelease --no-daemon --stacktrace
 
       - name: Gradle signing report
         working-directory: android
         run: ./gradlew signingReport
+
+      - name: Print signing certificate (debug)
+        run: |
+          APK_FILE=$(ls -1 android/app/build/outputs/apk/release/*.apk | head -n1)
+          if [ -f "$APK_FILE" ]; then
+            echo "📋 APK signing certificate:"
+            "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify -print-certs "$APK_FILE" | sed -n '1,12p'
+          else
+            echo "❌ APK file not found for certificate verification"
+          fi
 
       - name: Verify APK and prepare release
         run: |

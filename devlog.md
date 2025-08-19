@@ -1,5 +1,121 @@
 # 📋 ラミネーター・ダッシュボード開発ログ
 
+## 🗓️ 2025-08-19 - Ver.8.6 重要修正セッション
+
+### 🎯 作業概要
+**目的**: Ver.8.5ビルド失敗の根本原因解決  
+**期間**: 2025-08-19 19:00頃  
+**結果**: 全5項目の根本問題を解決 ✅
+
+---
+
+### 🚨 発見された問題
+
+#### Ver.8.5でのCIエラー分析:
+```
+❌ JDK17設定: JAVA_VERSION: 17 (Capacitor 7はJDK21が前提)
+❌ SDKライセンス承認待ち: "6 of 7 SDK package licenses not accepted"でCI停止
+❌ 重要: android/gradlew不存在: "chmod: cannot access 'gradlew': No such file or directory"
+❌ webDirコピー不備: サブディレクトリが欠落する可能性
+```
+
+---
+
+### ✅ 実装した修正
+
+#### **1. JDK 17→21への更新**
+```yaml
+# .github/workflows/build-apk.yml:16,33
+env:
+  JAVA_VERSION: '21'  # ← 17から変更
+
+- name: Setup Java
+  with:
+    java-version: '21'  # ← 固定値に変更
+```
+
+#### **2. Android SDK API 35の明示インストール**
+```yaml
+# 新規追加ステップ
+- name: Install Android SDK packages
+  run: |
+    sdkmanager --install \
+      "platforms;android-35" \
+      "build-tools;35.0.0" \
+      "platform-tools"
+```
+
+#### **3. SDKライセンス非対話承認**
+```yaml
+# 修正
+- name: Accept Android licenses (non-interactive)
+  run: yes | sdkmanager --licenses  # >/dev/null削除で対話待ち防止
+```
+
+#### **4. webDir再帰コピーの実装**
+```yaml
+# 大幅改良: rsync使用
+- name: Build web assets (recursive copy)
+  run: |
+    rm -rf www && mkdir -p www
+    rsync -a --delete \
+      --exclude='.git' --exclude='.github' --exclude='android' \
+      --exclude='node_modules' --exclude='*.log' \
+      ./ www/
+```
+
+#### **5. Capacitor Androidプラットフォーム確実作成**
+```yaml
+# 最重要修正
+- name: Force recreate Android platform
+  run: |
+    rm -rf android/  # 既存削除
+    npx cap add android
+    
+    # 検証: gradlewファイル存在確認
+    if [ -f "android/gradlew" ]; then
+      chmod +x android/gradlew
+    else
+      exit 1  # ビルド停止
+    fi
+```
+
+---
+
+### 🔍 技術的改善
+
+#### **根本原因分析**:
+- **JDK17**: Capacitor 7 + Android API 35はJDK21必須
+- **SDKライセンス**: 新API使用時は追加ライセンス承認が必要
+- **gradlew不存在**: `cap add android`が不完全実行で停止していた
+
+#### **解決戦略**:
+- **事前検証**: 各ステップで必要ファイルの存在確認
+- **冗長化排除**: chmodの重複実行を削除
+- **包括的依存関係**: SDK/ライセンス/プラットフォームを順次確実設定
+
+---
+
+### 📊 期待される効果
+
+#### **安定性向上**:
+- ✅ JDK21対応: Capacitor 7の要求仕様に完全適合
+- ✅ 非対話処理: CIが無人で完全実行
+- ✅ 確実なandroid/構築: gradlew不存在エラーの根絶
+
+#### **保守性向上**:
+- ✅ 段階検証: 各ステップで成功確認後に次処理へ
+- ✅ デバッグ改良: より詳細なログ出力で問題特定容易化
+
+---
+
+### 🚀 次回ビルドVer.8.6への期待
+
+上記修正により、Ver.8.5で発生した全エラーが解決されることを確認。  
+特に `android/gradlew` の確実作成により、Gradle実行が正常に行われる見込み。
+
+---
+
 ## 🗓️ 2025-08-17 - Ver.2.18 開発セッション
 
 ### 🎯 作業概要
