@@ -212,9 +212,9 @@ jobs:
 
       - name: Set Version Information
         run: |
-          echo "📋 Setting version information for Ver.8.0 Advanced Signature System..."
+          echo "📋 Setting version information for Ver.8.1 Advanced Signature System - Gradle Fix..."
           VERSION_MAJOR="8"
-          VERSION_MINOR="0"
+          VERSION_MINOR="1"
           VERSION_PATCH="${{ github.run_number }}"
           VERSION_TAG="$VERSION_MAJOR.$VERSION_MINOR.$VERSION_PATCH"
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
@@ -328,23 +328,23 @@ jobs:
               signingConfigs {
                   release {
                       // Validate all required environment variables are present
-                      def keystoreFile = System.getenv("KEYSTORE_FILE")
-                      def keystorePass = System.getenv("KEYSTORE_PASSWORD")
-                      def keyAlias = System.getenv("KEY_ALIAS")
-                      def keyPass = System.getenv("KEY_PASSWORD")
+                      def keystoreFilePath = System.getenv("KEYSTORE_FILE")
+                      def keystorePassword = System.getenv("KEYSTORE_PASSWORD")
+                      def keyAliasName = System.getenv("KEY_ALIAS")
+                      def keyPassword = System.getenv("KEY_PASSWORD")
                       
-                      if (keystoreFile && keystorePass && keyAlias && keyPass) {
-                          storeFile file(keystoreFile)
-                          storePassword keystorePass
-                          keyAlias keyAlias
-                          keyPassword keyPass
-                          println "✅ Gradle: Using custom keystore: ${keystoreFile}"
+                      if (keystoreFilePath && keystorePassword && keyAliasName && keyPassword) {
+                          storeFile file(keystoreFilePath)
+                          storePassword keystorePassword
+                          keyAlias keyAliasName
+                          keyPassword keyPassword
+                          println "✅ Gradle: Using custom keystore: ${keystoreFilePath}"
                       } else {
                           println "❌ Gradle: Missing signing environment variables"
-                          println "   KEYSTORE_FILE: ${keystoreFile ? 'SET' : 'MISSING'}"
-                          println "   KEYSTORE_PASSWORD: ${keystorePass ? 'SET' : 'MISSING'}"
-                          println "   KEY_ALIAS: ${keyAlias ? 'SET' : 'MISSING'}"
-                          println "   KEY_PASSWORD: ${keyPass ? 'SET' : 'MISSING'}"
+                          println "   KEYSTORE_FILE: ${keystoreFilePath ? 'SET' : 'MISSING'}"
+                          println "   KEYSTORE_PASSWORD: ${keystorePassword ? 'SET' : 'MISSING'}"
+                          println "   KEY_ALIAS: ${keyAliasName ? 'SET' : 'MISSING'}"
+                          println "   KEY_PASSWORD: ${keyPassword ? 'SET' : 'MISSING'}"
                           throw new GradleException("Signing configuration incomplete - cannot build signed APK")
                       }
                   }
