@@ -109,82 +109,45 @@ jobs:
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
           echo "✅ Version tag set to: $VERSION_TAG"
 
-      - name: Guard: stop if no fixed keystore
+      - name: "Guard stop if no fixed keystore"
+        shell: bash
         run: |
           if [ -z "${{ secrets.KEYSTORE_B64 }}" ]; then
             echo "::error:: Fixed keystore (KEYSTORE_B64) is missing. Refusing to build a non-updatable APK."
             exit 1
           fi
 
-      - name: Inject signing (keystore & gradle)
+      - name: "Inject signing keystore and gradle"
+        shell: bash
         run: |
           echo "🔑 Setting up signing configuration..."
-          echo "📦 Restoring fixed keystore from Secrets..."
           echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > android/app/release.keystore
           
           # Add signing config to gradle.properties
           cat >> android/gradle.properties <<'EOF'
-        MY_STORE_FILE=release.keystore
-        MY_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
-        MY_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
-        MY_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
-        EOF
-        
-          echo "SIGNING_MODE=github-secrets-persistent" >> $GITHUB_ENV
+MY_STORE_FILE=release.keystore
+MY_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
+MY_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
+MY_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
+EOF
           
           # Verify keystore exists before build
-          echo "🔍 Verifying keystore exists..."
-          test -f android/app/release.keystore || { echo "::error::keystore missing at android/app/release.keystore"; exit 1; }
-          echo "✅ Keystore verified"
-          
-          # Inject signingConfigs to app/build.gradle (if not exists)
-          FILE=android/app/build.gradle
-          if ! grep -q "signingConfigs" "$FILE"; then
-            echo "📝 Adding signingConfigs to build.gradle..."
-            awk '
-              /android {/ { 
-                print; 
-                print "    signingConfigs {"; 
-                print "        release {"; 
-                print "            storeFile file(MY_STORE_FILE)"; 
-                print "            storePassword MY_STORE_PASSWORD"; 
-                print "            keyAlias MY_KEY_ALIAS"; 
-                print "            keyPassword MY_KEY_PASSWORD"; 
-                print "        }"; 
-                print "    }"; 
-                print ""; 
-                next 
-              }
-              /defaultConfig {/ { 
-                print; 
-                print "        signingConfig signingConfigs.release"; 
-                next 
-              }
-              /buildTypes {/ && /release {/ {
-                print;
-                getline;
-                print "            signingConfig signingConfigs.release";
-                print;
-                next
-              }
-              { print }
-            ' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
-            echo "✅ Signing configuration injected with correct order"
-          else
-            echo "✅ Signing configuration already exists"
-          fi
+          test -f android/app/release.keystore || { echo "::error:: keystore missing at android/app/release.keystore"; exit 1; }
+          echo "SIGNING_MODE=github-secrets-persistent" >> $GITHUB_ENV
 
-      - name: Guard: check applicationId
+      - name: "Guard check applicationId"
+        shell: bash
         run: |
           APP_GRADLE=android/app/build.gradle
-          ID=$(grep -o "applicationId \".*\"" "$APP_GRADLE" | sed 's/.*"\(.*\)".*/\1/')
+          ID=$(grep -o 'applicationId ".*"' "$APP_GRADLE" | sed 's/.*"\(.*\)".*/\1/')
           if [ "$ID" != "com.bochang.laminator" ]; then
             echo "::error:: applicationId changed to '$ID' (expected: com.bochang.laminator)"
             exit 1
           fi
           echo "✅ applicationId verified: $ID"
 
-      - name: Bump versionCode
+      - name: "Bump versionCode"
+        shell: bash
         run: |
           APP_GRADLE=android/app/build.gradle
           if grep -q "versionCode" "$APP_GRADLE"; then
@@ -199,15 +162,18 @@ jobs:
 
       - name: Build signed release
         working-directory: android
+        shell: bash
         run: |
           echo "🏗️ Building signed APK with injected keystore..."
           ./gradlew clean assembleRelease --no-daemon --stacktrace
 
       - name: Gradle signing report
         working-directory: android
+        shell: bash
         run: ./gradlew signingReport
 
-      - name: Print signing certificate (SHA-256)
+      - name: "Print signing certificate SHA-256"
+        shell: bash
         run: |
           APK_FILE=$(ls -1 android/app/build/outputs/apk/release/*.apk | head -n1)
           if [ -f "$APK_FILE" ]; then
@@ -222,6 +188,7 @@ jobs:
           fi
 
       - name: Verify APK and prepare release
+        shell: bash
         run: |
           APK=$(ls -1 android/app/build/outputs/apk/release/*.apk | head -n1)
           if [ ! -f "$APK" ]; then
@@ -243,7 +210,8 @@ jobs:
             echo "CURRENT_FINGERPRINT=$CURRENT_FINGERPRINT" >> $GITHUB_ENV
           fi
 
-      - name: Verify APK signature (golden gate)
+      - name: "Verify APK signature golden gate"
+        shell: bash
         run: |
           if [ -n "${{ secrets.GOLDEN_FINGERPRINT }}" ] && [ -n "${{ env.CURRENT_FINGERPRINT }}" ]; then
             echo "🚨 FINGERPRINT GATE ACTIVATED"
@@ -279,58 +247,61 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.VERSION_TAG }}
-          name: Laminator Dashboard ${{ env.VERSION_TAG }} - Minimal Clean
+          name: "Laminator Dashboard ${{ env.VERSION_TAG }} Ver.8.10+ History Display"
           files: ${{ env.APK_FILE }}
           body: |
-            # 🎛️ Laminator Dashboard ${{ env.VERSION_TAG }} - Minimal Clean
+            # 🎛️ Laminator Dashboard ${{ env.VERSION_TAG }} Ver.8.10+ - 履歴表示機能完成版
             
-            ## 🚀 Revolutionary Rebuild - AWK/sed全廃・最小構成
+            ## 🆕 Ver.8.10+ 新機能実装
             
             **Signing Mode**: `${{ env.SIGNING_MODE }}`  
             **Signature SHA-256**: `${{ env.CURRENT_FINGERPRINT }}`
             
-            ### 🔧 根本解決実装
-            - ✅ **静的build.gradle**: CIでの書き換え処理を完全排除
-            - ✅ **-P direct injection**: Gradleプロパティ直接渡し
-            - ✅ **AWK/sed全廃**: 動的ファイル改変を根絶
-            - ✅ **冪等処理**: Capacitor init/add の安全化
-            - ✅ **Golden fingerprint gate**: 署名一貫性の厳格検証
+            ### 🔧 新機能追加
+            - ✅ **過去業務履歴表示**: 累積CSVから最新20件の業務記録を表示
+            - ✅ **累積保存システム**: 日付別→固定ファイル名での継続的データ蓄積
+            - ✅ **統計情報表示**: 総履歴件数・業務パターンの可視化
+            - ✅ **モーダルUI改善**: 汎用モーダルシステムによる操作性向上
+            
+            ### 🛡️ Ver.8.10継承の対策システム
+            - ✅ **4つのガード**: 更新エラー防止（Keystore・AppID・Version・署名）
+            - ✅ **Directory.Data対応**: Android 16対応のバックアップエラー解決
+            - ✅ **Share API統合**: 確実なファイル保存・共有機能
+            - ✅ **署名一貫性保証**: RecipeBox実証済み署名システム継承
             
             ### 📋 Installation Instructions
             
-            #### 🎯 If Signing Mode = `github-secrets-persistent`:
-            **✅ SEAMLESS UPDATES** - シームレス上書き更新が可能
+            #### 🎯 Signing Mode = `github-secrets-persistent`:
+            **✅ SEAMLESS UPDATES** - Ver.8.9→8.10+の無障害上書き更新
             
-            #### ⚠️ If Signing Mode = `bootstrap-temporary`:
-            **🚨 ONE-TIME MIGRATION** - 初回のみアンインストール→再インストール必要
-            
-            ## 🛡️ String.call() Error Complete Fix
-            
-            Ver.8.4では以下の根本原因を完全解決：
-            
-            1. **Groovy変数名衝突排除**: `def keyAlias = ...` のような同名変数定義を削除
-            2. **静的署名設定**: project.findProperty()によるクリーンな実装
-            3. **ファイル書き換え全廃**: sed/awkによるbuild.gradle改変を根絶
-            4. **CI最小化**: 120行→65行への大幅簡素化
+            #### ⚠️ 初回インストール時:
+            **📱 ONE-TIME SETUP** - 新機能のため初回のみセットアップ
             
             ## 🔐 Technical Specifications
             
-            - **Framework**: Capacitor 7 + Android (Gradle統合)
-            - **Build Method**: Static Configuration + -P Property Injection
-            - **Signing**: ${{ env.SIGNING_MODE == 'github-secrets-persistent' && '🔐 Persistent GitHub Secrets' || '🏗️ Bootstrap Temporary' }}
-            - **Architecture**: Zero Dynamic File Modification
+            - **Framework**: Capacitor 7 + Android API 35
+            - **Data Storage**: Directory.Data + CapacitorFilesystem
+            - **File Sharing**: CapacitorShare API統合
+            - **Build System**: Static Configuration + Gradle Properties
             - **Compatibility**: Android 7.0+ (API 24+)
             
-            ## 📊 Build Quality Gates
+            ## 📊 Ver.8.10+ 機能仕様
             
-            - **Gradle Signing Report**: 署名設定の自動検証
-            - **APK Signature Verification**: apksigner による署名確認  
-            - **Golden Fingerprint Gate**: 署名一貫性の厳格チェック
-            - **Release Quality Assurance**: 段階的品質保証システム
+            ### 🗂️ 履歴表示システム
+            - **データソース**: `LamiOpe/laminator-work-history.csv`
+            - **表示件数**: 最新20件（新しい順）
+            - **表示項目**: 日時、ジョブ名、数量、所要時間
+            - **統計情報**: 総履歴件数、作業パターン分析
+            
+            ### 💾 累積保存システム
+            - **保存方式**: 単一ファイル継続追記
+            - **ファイル形式**: CSV（UTF-8 BOM付き）
+            - **データ保全**: Directory.Data確実保存
+            - **バックアップ**: Share API自動バックアップ
             
             ---
-            🤖 **Minimal Clean Build**: AWK/sed全廃による革命的リファクタリング  
+            🤖 **Ver.8.10+ Build**: 履歴表示・累積保存・Directory.Data完全対応  
             📅 **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')  
-            🏆 **Achievement**: 4回連続ビルド失敗からの完全復活
+            🏆 **Achievement**: 更新エラー・バックアップエラー・履歴管理の三重完全解決
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
