@@ -124,7 +124,7 @@ jobs:
           echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > android/app/release.keystore
           
           # Add signing config to gradle.properties
-          cat >> android/gradle.properties <<'EOF'
+          cat >> android/gradle.properties << EOF
 MY_STORE_FILE=release.keystore
 MY_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
 MY_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
