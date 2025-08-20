@@ -127,11 +127,11 @@ jobs:
           echo "🔑 Setting up signing configuration..."
           echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > android/app/release.keystore
           
-          # Add signing config to gradle.properties
-          echo "MY_STORE_FILE=release.keystore" >> android/gradle.properties
-          echo "MY_STORE_PASSWORD=${KEYSTORE_PASSWORD}" >> android/gradle.properties
-          echo "MY_KEY_ALIAS=${KEY_ALIAS}" >> android/gradle.properties
-          echo "MY_KEY_PASSWORD=${KEY_PASSWORD}" >> android/gradle.properties
+          # Add signing config to gradle.properties (build.gradleと一致させる)
+          echo "LAMINATOR_STORE_FILE=release.keystore" >> android/gradle.properties
+          echo "LAMINATOR_STORE_PASSWORD=${KEYSTORE_PASSWORD}" >> android/gradle.properties
+          echo "LAMINATOR_KEY_ALIAS=${KEY_ALIAS}" >> android/gradle.properties
+          echo "LAMINATOR_KEY_PASSWORD=${KEY_PASSWORD}" >> android/gradle.properties
           
           # Verify keystore exists before build
           test -f android/app/release.keystore || { echo "::error:: keystore missing at android/app/release.keystore"; exit 1; }
