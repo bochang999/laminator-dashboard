@@ -164,7 +164,7 @@
                     <p><strong>目標時刻:</strong> <span id="reportTargetTime">--:--</span></p>
                     
                     <div style="margin-top: 20px;">
-                        <button id="exportCsvBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">📋 業務記録をCSV保存</button>
+                        <button id="exportCsvBtn" class="btn btn-primary" onclick="dashboard.exportDataAsCsvV2()" style="width: 100%; margin-bottom: 10px;">📋 業務記録をCSV保存</button>
                         <button id="clearJobsBtn" class="btn btn-danger" style="width: 100%;">🗑️ 本日のジョブを消去</button>
                     </div>
                 </div>
@@ -187,7 +187,7 @@
     </div>
     
     <footer style="text-align: center; padding: 10px; border-top: 1px solid #ccc; font-size: 12px; color: #888;">
-        Ver. 8.5 - npm依存関係修正・Node.js環境完全対応
+        Ver. 8.10 - 更新エラー・バックアップエラー完全対策版
     </footer>
 
     <script src="script.js"></script>

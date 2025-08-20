@@ -109,43 +109,28 @@ jobs:
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
           echo "✅ Version tag set to: $VERSION_TAG"
 
+      - name: Guard: stop if no fixed keystore
+        run: |
+          if [ -z "${{ secrets.KEYSTORE_B64 }}" ]; then
+            echo "::error:: Fixed keystore (KEYSTORE_B64) is missing. Refusing to build a non-updatable APK."
+            exit 1
+          fi
+
       - name: Inject signing (keystore & gradle)
         run: |
           echo "🔑 Setting up signing configuration..."
+          echo "📦 Restoring fixed keystore from Secrets..."
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > android/app/release.keystore
           
-          if [ -n "${{ secrets.KEYSTORE_B64 }}" ]; then
-            echo "📦 Restoring fixed keystore from Secrets..."
-            echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > android/app/release.keystore
-            
-            # Add signing config to gradle.properties
-            cat >> android/gradle.properties <<'EOF'
-          MY_STORE_FILE=release.keystore
-          MY_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
-          MY_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
-          MY_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
-          EOF
-          
-            echo "SIGNING_MODE=github-secrets-persistent" >> $GITHUB_ENV
-          else
-            echo "⚠️ No fixed keystore found - creating temporary one"
-            echo "🚨 WARNING: This will cause update conflicts for existing users"
-            
-            # Create temporary keystore
-            keytool -genkeypair -v -keystore android/app/release.keystore \
-              -alias laminator-temp -keyalg RSA -keysize 2048 -validity 365 \
-              -dname "CN=Laminator Temp,O=BochangDev,C=JP" \
-              -storepass temp2025 -keypass temp2025
-            
-            # Add temporary signing config
-            cat >> android/gradle.properties <<'EOF'
-          MY_STORE_FILE=release.keystore
-          MY_STORE_PASSWORD=temp2025
-          MY_KEY_ALIAS=laminator-temp
-          MY_KEY_PASSWORD=temp2025
-          EOF
-          
-            echo "SIGNING_MODE=bootstrap-temporary" >> $GITHUB_ENV
-          fi
+          # Add signing config to gradle.properties
+          cat >> android/gradle.properties <<'EOF'
+        MY_STORE_FILE=release.keystore
+        MY_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
+        MY_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
+        MY_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
+        EOF
+        
+          echo "SIGNING_MODE=github-secrets-persistent" >> $GITHUB_ENV
           
           # Verify keystore exists before build
           echo "🔍 Verifying keystore exists..."
@@ -189,7 +174,17 @@ jobs:
             echo "✅ Signing configuration already exists"
           fi
 
-      - name: Bump versionCode (optional)
+      - name: Guard: check applicationId
+        run: |
+          APP_GRADLE=android/app/build.gradle
+          ID=$(grep -o "applicationId \".*\"" "$APP_GRADLE" | sed 's/.*"\(.*\)".*/\1/')
+          if [ "$ID" != "com.bochang.laminator" ]; then
+            echo "::error:: applicationId changed to '$ID' (expected: com.bochang.laminator)"
+            exit 1
+          fi
+          echo "✅ applicationId verified: $ID"
+
+      - name: Bump versionCode
         run: |
           APP_GRADLE=android/app/build.gradle
           if grep -q "versionCode" "$APP_GRADLE"; then
@@ -198,7 +193,8 @@ jobs:
             sed -i "s/versionCode [0-9]\+/versionCode ${NEW}/" "$APP_GRADLE"
             echo "✅ versionCode updated: $CUR -> $NEW"
           else
-            echo "⚠️ versionCode not found in build.gradle"
+            echo "::error:: versionCode not found in build.gradle"
+            exit 1
           fi
 
       - name: Build signed release
@@ -211,14 +207,18 @@ jobs:
         working-directory: android
         run: ./gradlew signingReport
 
-      - name: Print signing certificate (debug)
+      - name: Print signing certificate (SHA-256)
         run: |
           APK_FILE=$(ls -1 android/app/build/outputs/apk/release/*.apk | head -n1)
           if [ -f "$APK_FILE" ]; then
-            echo "📋 APK signing certificate:"
-            "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify -print-certs "$APK_FILE" | sed -n '1,12p'
+            echo "📋 APK signing certificate verification:"
+            "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify -print-certs "$APK_FILE" | sed -n '1,15p'
+            echo ""
+            echo "🔑 SHA-256 Fingerprint for signature consistency check:"
+            "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify -print-certs "$APK_FILE" | grep -A1 "SHA-256 digest:" | head -2
           else
             echo "❌ APK file not found for certificate verification"
+            exit 1
           fi
 
       - name: Verify APK and prepare release

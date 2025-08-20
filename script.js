@@ -1895,6 +1895,172 @@ class LaminatorDashboard {
         document.getElementById('paperLength').value = '';
         document.getElementById('overlapWidth').value = '';
         document.getElementById('processSpeed').value = '';
+    }
+
+    // Ver.8.10 Directory.Data + Share API方式（OS-PLUG-FILE-0013対策）
+    async saveToAppDataAndShare(content, filename, contentType = 'text/plain') {
+        try {
+            // 1. まずは私有領域（Directory.Data）に保存
+            if (isCapacitorEnvironment && CapacitorFilesystem) {
+                const BACKUP_DIR = 'LamiOpe';
+                
+                // フォルダ作成（権限不要）
+                try {
+                    await CapacitorFilesystem.mkdir({
+                        path: BACKUP_DIR,
+                        directory: CapacitorDirectory.Data,
+                        recursive: true
+                    });
+                } catch (e) {
+                    console.log('📁 Directory already exists or created');
+                }
+                
+                // 私有領域に保存（確実に成功）
+                await CapacitorFilesystem.writeFile({
+                    path: `${BACKUP_DIR}/${filename}`,
+                    data: content,
+                    directory: CapacitorDirectory.Data,
+                    encoding: CapacitorEncoding.UTF8
+                });
+                
+                console.log(`✅ ${filename} saved to app private storage`);
+                
+                // 2. Share APIでユーザーに保存先選択させる
+                if (CapacitorShare) {
+                    const { uri } = await CapacitorFilesystem.getUri({
+                        path: `${BACKUP_DIR}/${filename}`,
+                        directory: CapacitorDirectory.Data
+                    });
+                    
+                    await CapacitorShare.share({
+                        title: `${filename} をエクスポート`,
+                        text: `ラミネーター作業記録: ${filename}`,
+                        url: uri
+                    });
+                    
+                    this.showToast(`${filename} を共有しました（保存先を選択してください）`, 'success');
+                } else {
+                    this.showToast(`${filename} をアプリ内に保存しました`, 'success');
+                }
+                
+                return true;
+            }
+        } catch (error) {
+            console.warn('❌ Directory.Data保存失敗:', error);
+        }
+        
+        // 3. フォールバック: Blob download
+        this.fallbackBlobDownload(content, filename);
+        return false;
+    }
+    
+    // フォールバック: Blob ダウンロード（Web環境・エラー時）
+    fallbackBlobDownload(content, filename) {
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        
+        setTimeout(() => {
+            link.click();
+            setTimeout(() => {
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+            }, 100);
+        }, 100);
+        
+        console.log(`📥 Fallback download: ${filename}`);
+        this.showToast(`${filename} をダウンロードしました`, 'success');
+    }
+    
+    // Ver.8.10 バックアップ機能（OS-PLUG-FILE-0013対策版）
+    async backupData() {
+        try {
+            console.log('🔄 バックアップ開始（Directory.Data方式）...');
+            
+            const backupData = {
+                timestamp: new Date().toISOString(),
+                version: '8.10',
+                filmSessions: this.filmSessions || [],
+                settings: this.settings || {},
+                workStarted: this.workStarted || false,
+                workStartTime: this.workStartTime || null
+            };
+            
+            const jsonContent = JSON.stringify(backupData, null, 2);
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/[:]/g, '-');
+            const filename = `laminator-backup-${timestamp}.json`;
+            
+            const success = await this.saveToAppDataAndShare(jsonContent, filename, 'application/json');
+            
+            if (success) {
+                console.log('✅ バックアップ完了（Directory.Data + Share）');
+            } else {
+                console.log('✅ バックアップ完了（Fallback download）');
+            }
+            
+        } catch (error) {
+            console.error('❌ バックアップエラー:', error);
+            this.showToast(`バックアップエラー: ${error.message}`, 'error');
+        }
+    }
+    
+    // Ver.8.10 CSV保存機能（OS-PLUG-FILE-0013対策版）
+    async exportDataAsCsvV2() {
+        try {
+            const completedJobs = [];
+            const today = new Date();
+            const todayStr = today.toLocaleDateString('ja-JP');
+            
+            this.filmSessions.forEach(session => {
+                session.jobs.forEach(job => {
+                    if (job.completed) {
+                        const prodTime = job.productionTime || job.processingTime || 0;
+                        const usageLength = job.usageLength || 0;
+                        const sheets = job.sheets || 0;
+                        const completedAt = job.completedAt || new Date().toLocaleString('ja-JP');
+                        
+                        completedJobs.push({
+                            日時: todayStr,
+                            完了時刻: completedAt,
+                            ジョブ名: job.name || 'ジョブ',
+                            生産枚数: sheets,
+                            使用フィルム: `${(sheets * usageLength).toFixed(2)}m`,
+                            加工時間: `${(isNaN(prodTime) ? 0 : prodTime).toFixed(1)}分`,
+                            フィルムセッション: session.name || `セッション${session.id}`
+                        });
+                    }
+                });
+            });
+
+            if (completedJobs.length === 0) {
+                this.showToast('エクスポートする完了済みジョブがありません', 'error');
+                return;
+            }
+
+            // CSV作成
+            const headers = Object.keys(completedJobs[0]);
+            const csvContent = [
+                '\uFEFF' + headers.join(','), // BOM付きヘッダー
+                ...completedJobs.map(job => 
+                    headers.map(header => `"${job[header]}"`).join(',')
+                )
+            ].join('\n');
+            
+            const timestamp = new Date().toISOString().slice(0, 10);
+            const filename = `laminator-work-${timestamp}.csv`;
+            
+            const success = await this.saveToAppDataAndShare(csvContent, filename, 'text/csv');
+            
+            console.log(`📊 CSV export completed: ${completedJobs.length} jobs`);
+            
+        } catch (error) {
+            console.error('❌ CSV export error:', error);
+            this.showToast(`CSVエクスポートエラー: ${error.message}`, 'error');
+        }
+    }
         document.getElementById('initialFilmRemaining').value = '';
     }
 
