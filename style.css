@@ -1186,3 +1186,101 @@ input:focus {
     font-size: 12px;
     color: var(--dark-gray);
 }
+
+/* ========== Ver.8.10 Work History Modal Styles ========== */
+
+.work-history-container {
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+.work-history-container .history-stats {
+    background-color: var(--light-gray);
+    padding: 10px;
+    border-radius: var(--border-radius);
+    margin-bottom: 15px;
+    text-align: center;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.work-history-container .history-list {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    background-color: white;
+    display: block; /* Override existing flex */
+}
+
+.work-history-container .history-item {
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--medium-gray);
+    border-left: none; /* Override existing border-left */
+    background: white; /* Override existing background */
+    transition: background-color 0.2s ease;
+    margin-bottom: 0; /* Override any existing margin */
+}
+
+.work-history-container .history-item:last-child {
+    border-bottom: none;
+}
+
+.work-history-container .history-item:hover {
+    background-color: var(--light-gray);
+}
+
+.work-history-container .history-date {
+    font-size: 12px;
+    color: var(--dark-gray);
+    margin-bottom: 4px;
+}
+
+.work-history-container .history-job {
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 4px;
+}
+
+.work-history-container .history-details {
+    font-size: 12px;
+    color: var(--dark-gray);
+}
+
+.history-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.history-actions .btn {
+    flex: 1;
+}
+
+.btn-info {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.btn-info:hover {
+    background-color: #2E86C1;
+    transform: translateY(-1px);
+}
+
+/* ========== Responsive Design for Work History ========== */
+
+@media (max-width: 600px) {
+    .history-actions {
+        flex-direction: column;
+    }
+    
+    .work-history-container .history-list {
+        max-height: 300px;
+    }
+}

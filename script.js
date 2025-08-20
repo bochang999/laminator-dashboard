@@ -2007,7 +2007,7 @@ class LaminatorDashboard {
         }
     }
     
-    // Ver.8.10 CSV保存機能（OS-PLUG-FILE-0013対策版）
+    // Ver.8.10 CSV保存機能（累積保存 + OS-PLUG-FILE-0013対策版）
     async exportDataAsCsvV2() {
         try {
             const completedJobs = [];
@@ -2040,25 +2040,180 @@ class LaminatorDashboard {
                 return;
             }
 
-            // CSV作成
-            const headers = Object.keys(completedJobs[0]);
-            const csvContent = [
-                '\uFEFF' + headers.join(','), // BOM付きヘッダー
-                ...completedJobs.map(job => 
-                    headers.map(header => `"${job[header]}"`).join(',')
-                )
-            ].join('\n');
+            // 累積CSVファイル名（固定）
+            const filename = 'laminator-work-history.csv';
             
-            const timestamp = new Date().toISOString().slice(0, 10);
-            const filename = `laminator-work-${timestamp}.csv`;
+            // 既存累積ファイルを読み込み
+            let existingCsvContent = '';
+            let headers = Object.keys(completedJobs[0]);
+            
+            try {
+                if (isCapacitorEnvironment && CapacitorFilesystem) {
+                    const { uri } = await CapacitorFilesystem.getUri({
+                        path: `LamiOpe/${filename}`,
+                        directory: CapacitorDirectory.Data
+                    });
+                    
+                    const existingFile = await CapacitorFilesystem.readFile({
+                        path: `LamiOpe/${filename}`,
+                        directory: CapacitorDirectory.Data,
+                        encoding: CapacitorEncoding.UTF8
+                    });
+                    existingCsvContent = existingFile.data;
+                    console.log('✅ 既存累積CSV読み込み成功');
+                }
+            } catch (readError) {
+                console.log('📝 新規累積CSVファイル作成（既存ファイルなし）');
+                existingCsvContent = '';
+            }
+            
+            // CSVコンテンツ作成（累積方式）
+            let csvContent;
+            if (existingCsvContent && existingCsvContent.trim()) {
+                // 既存データに今日のデータを追加
+                const newDataRows = completedJobs.map(job => 
+                    headers.map(header => `"${job[header]}"`).join(',')
+                ).join('\n');
+                csvContent = existingCsvContent.trim() + '\n' + newDataRows;
+            } else {
+                // 新規ファイル作成
+                csvContent = [
+                    '\uFEFF' + headers.join(','), // BOM付きヘッダー
+                    ...completedJobs.map(job => 
+                        headers.map(header => `"${job[header]}"`).join(',')
+                    )
+                ].join('\n');
+            }
             
             const success = await this.saveToAppDataAndShare(csvContent, filename, 'text/csv');
             
-            console.log(`📊 CSV export completed: ${completedJobs.length} jobs`);
+            const isNewFile = !existingCsvContent || !existingCsvContent.trim();
+            const actionText = isNewFile ? '作成' : '追記';
+            console.log(`📊 累積CSV ${actionText}完了: 今回${completedJobs.length}件`);
+            this.showToast(`業務履歴に${actionText}しました（今回${completedJobs.length}件）`, 'success');
             
         } catch (error) {
             console.error('❌ CSV export error:', error);
             this.showToast(`CSVエクスポートエラー: ${error.message}`, 'error');
+        }
+    }
+    
+    // 履歴表示機能：過去の生産データ一覧
+    async showWorkHistory() {
+        try {
+            console.log('📊 履歴表示開始...');
+            
+            if (!isCapacitorEnvironment || !CapacitorFilesystem) {
+                this.showToast('履歴表示はAPK環境でのみ利用可能です', 'error');
+                return;
+            }
+            
+            // 累積CSVファイル読み込み
+            const filename = 'laminator-work-history.csv';
+            let csvContent = '';
+            
+            try {
+                const existingFile = await CapacitorFilesystem.readFile({
+                    path: `LamiOpe/${filename}`,
+                    directory: CapacitorDirectory.Data,
+                    encoding: CapacitorEncoding.UTF8
+                });
+                csvContent = existingFile.data;
+            } catch (readError) {
+                this.showToast('履歴ファイルが見つかりません。まず業務記録をCSV保存してください。', 'error');
+                return;
+            }
+            
+            // CSV解析
+            const lines = csvContent.split('\n').filter(line => line.trim());
+            if (lines.length <= 1) {
+                this.showToast('履歴データがありません', 'error');
+                return;
+            }
+            
+            // ヘッダー除去して最新20件を表示
+            const dataLines = lines.slice(1).slice(-20).reverse(); // 最新20件、新しい順
+            
+            let historyHtml = `
+                <div class="work-history-container">
+                    <h4>📊 最近の業務履歴（最新20件）</h4>
+                    <div class="history-stats">
+                        <span>総履歴件数: ${lines.length - 1}件</span>
+                    </div>
+                    <div class="history-list">
+            `;
+            
+            dataLines.forEach((line, index) => {
+                const cols = line.split(',').map(col => col.replace(/"/g, ''));
+                if (cols.length >= 6) {
+                    const [date, time, jobName, sheets, film, duration] = cols;
+                    historyHtml += `
+                        <div class="history-item">
+                            <div class="history-date">${date} ${time}</div>
+                            <div class="history-job">${jobName} - ${sheets}枚</div>
+                            <div class="history-details">${film} / ${duration}</div>
+                        </div>
+                    `;
+                }
+            });
+            
+            historyHtml += `
+                    </div>
+                    <div class="history-actions">
+                        <button class="btn btn-primary" onclick="dashboard.exportDataAsCsvV2()">📥 フルCSVエクスポート</button>
+                        <button class="btn btn-secondary" onclick="dashboard.hideWorkHistory()">閉じる</button>
+                    </div>
+                </div>
+            `;
+            
+            // モーダル表示
+            this.showModal('workHistoryModal', '📊 業務履歴', historyHtml);
+            
+        } catch (error) {
+            console.error('❌ 履歴表示エラー:', error);
+            this.showToast(`履歴表示エラー: ${error.message}`, 'error');
+        }
+    }
+    
+    hideWorkHistory() {
+        this.hideModal('workHistoryModal');
+    }
+    
+    // 汎用モーダル表示機能
+    showModal(modalId, title, content) {
+        // 既存モーダルを使用または動的作成
+        let modal = document.getElementById(modalId);
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = modalId;
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="${modalId}-title">${title}</h3>
+                        <button class="modal-close" onclick="dashboard.hideModal('${modalId}')">&times;</button>
+                    </div>
+                    <div class="modal-body" id="${modalId}-body">
+                        ${content}
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        } else {
+            document.getElementById(`${modalId}-title`).innerHTML = title;
+            document.getElementById(`${modalId}-body`).innerHTML = content;
+        }
+        
+        modal.style.display = 'block';
+        modal.onclick = (e) => {
+            if (e.target === modal) this.hideModal(modalId);
+        };
+    }
+    
+    hideModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.style.display = 'none';
         }
     }
         document.getElementById('initialFilmRemaining').value = '';
