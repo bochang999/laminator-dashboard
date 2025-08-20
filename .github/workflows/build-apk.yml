@@ -208,6 +208,27 @@ jobs:
           echo "🔍 MY_* properties verification:"
           grep MY_ gradle.properties || echo "❌ No MY_* properties found"
 
+      - name: "Show keystore fingerprint (pre-check)"
+        shell: bash
+        run: |
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > ks.jks
+          keytool -list -v -keystore ks.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            | sed -n 's/.*SHA256: //p' | head -1 | tr -d ' :\n' | tr 'A-Z' 'a-z' > KEYSTORE.sha256
+          echo "🔑 Keystore SHA-256: $(cat KEYSTORE.sha256)"
+          if [ -n "${{ secrets.GOLDEN_FINGERPRINT }}" ]; then
+            echo "${{ secrets.GOLDEN_FINGERPRINT }}" | tr -d '[:space:]' | tr 'A-Z' 'a-z' > expected.sha256
+            if ! diff -q expected.sha256 KEYSTORE.sha256 >/dev/null; then
+              echo "::error:: GOLDEN_FINGERPRINT != Keystore fingerprint（Secrets不整合）"
+              echo "Expected: $(cat expected.sha256)"
+              echo "Keystore: $(cat KEYSTORE.sha256)"
+              exit 1
+            else
+              echo "✅ Keystore fingerprint matches GOLDEN_FINGERPRINT"
+            fi
+          else
+            echo "📋 No GOLDEN_FINGERPRINT configured"
+          fi
+
       - name: "Sign APK if unsigned (fallback)"
         shell: bash
         run: |
@@ -270,25 +291,29 @@ jobs:
         shell: bash
         run: |
           if [ -n "${{ secrets.GOLDEN_FINGERPRINT }}" ] && [ -n "${{ env.CURRENT_FINGERPRINT }}" ]; then
+            exp="$(echo "${{ secrets.GOLDEN_FINGERPRINT }}" | tr -d '[:space:]' | tr 'A-Z' 'a-z')"
+            cur="$(echo "${{ env.CURRENT_FINGERPRINT }}" | tr -d '[:space:]' | tr 'A-Z' 'a-z')"
             echo "🚨 FINGERPRINT GATE ACTIVATED"
-            echo "${{ secrets.GOLDEN_FINGERPRINT }}" > expected.sha256
-            echo "${{ env.CURRENT_FINGERPRINT }}" > current.sha256
+            echo "🔍 Normalized comparison:"
+            echo "   Expected: $exp"
+            echo "   Current:  $cur"
             
-            if diff -q expected.sha256 current.sha256 >/dev/null 2>&1; then
+            if [ "$exp" = "$cur" ]; then
               echo "✅ FINGERPRINT GATE PASSED - Signature consistent"
             else
               echo "❌ FINGERPRINT GATE FAILED"
-              echo "   Expected: ${{ secrets.GOLDEN_FINGERPRINT }}"
-              echo "   Current:  ${{ env.CURRENT_FINGERPRINT }}"
+              echo "   Raw Expected: ${{ secrets.GOLDEN_FINGERPRINT }}"
+              echo "   Raw Current:  ${{ env.CURRENT_FINGERPRINT }}"
               if [ "${{ env.SIGNING_MODE }}" = "github-secrets-persistent" ]; then
                 echo "💥 BUILD TERMINATED - Signature mismatch in persistent mode"
+                echo "💡 Update GOLDEN_FINGERPRINT secret to: ${{ env.CURRENT_FINGERPRINT }}"
                 exit 1
               else
                 echo "⚠️ Bootstrap mode - Set GOLDEN_FINGERPRINT to: ${{ env.CURRENT_FINGERPRINT }}"
               fi
             fi
           else
-            echo "📋 Fingerprint gate bypassed (no GOLDEN_FINGERPRINT configured)"
+            echo "📋 Gate bypassed (missing expected or current fingerprint)"
             echo "💡 To enable gate: Add GOLDEN_FINGERPRINT secret with value: ${{ env.CURRENT_FINGERPRINT }}"
           fi
 
