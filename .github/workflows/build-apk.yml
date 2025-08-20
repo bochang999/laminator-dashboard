@@ -32,18 +32,30 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Android SDK (manual)
+        run: |
+          export ANDROID_SDK_ROOT="$HOME/android-sdk"
+          mkdir -p "$ANDROID_SDK_ROOT"
+          curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-12266719_latest.zip -o cmdtools.zip
+          unzip -q cmdtools.zip -d "$ANDROID_SDK_ROOT"/cmdline-tools
+          mv "$ANDROID_SDK_ROOT"/cmdline-tools/cmdline-tools "$ANDROID_SDK_ROOT"/cmdline-tools/latest
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+
+      - name: Accept Android SDK licenses (non-interactive)
+        run: yes | "$HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager" --licenses
 
       - name: Install Android SDK packages
         run: |
-          sdkmanager --install \
+          "$HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager" --install \
             "platforms;android-35" \
             "build-tools;35.0.0" \
             "platform-tools"
 
-      - name: Accept Android licenses (non-interactive)
-        run: yes | sdkmanager --licenses
+      - name: Verify no pending licenses
+        run: |
+          echo "🔍 Verifying no pending licenses remain..."
+          echo n | "$HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          echo "✅ License verification completed"
 
       - name: Install dependencies
         run: npm install
@@ -180,10 +192,10 @@ jobs:
           APK_FILE=$(ls -1 android/app/build/outputs/apk/release/*.apk | head -n1)
           if [ -f "$APK_FILE" ]; then
             echo "📋 APK signing certificate verification:"
-            "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify -print-certs "$APK_FILE" | sed -n '1,15p'
+            "$HOME/android-sdk/build-tools/35.0.0/apksigner" verify --print-certs "$APK_FILE" | sed -n '1,15p'
             echo ""
             echo "🔑 SHA-256 Fingerprint for signature consistency check:"
-            "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify -print-certs "$APK_FILE" | grep -A1 "SHA-256 digest:" | head -2
+            "$HOME/android-sdk/build-tools/35.0.0/apksigner" verify --print-certs "$APK_FILE" | grep -A1 "SHA-256 digest:" | head -2
           else
             echo "❌ APK file not found for certificate verification"
             exit 1
@@ -205,8 +217,8 @@ jobs:
           echo "APK_FILE=$FINAL_NAME" >> $GITHUB_ENV
           
           # APK signature verification  
-          if command -v apksigner >/dev/null 2>&1; then
-            apksigner verify --print-certs "$FINAL_NAME" | sed -n 's/.*SHA-256 digest: //p' > current.sha256
+          if [ -f "$HOME/android-sdk/build-tools/35.0.0/apksigner" ]; then
+            "$HOME/android-sdk/build-tools/35.0.0/apksigner" verify --print-certs "$FINAL_NAME" | sed -n 's/.*SHA-256 digest: //p' > current.sha256
             CURRENT_FINGERPRINT=$(cat current.sha256 | tr -d ' \n')
             echo "📄 Current APK signature: $CURRENT_FINGERPRINT"
             echo "CURRENT_FINGERPRINT=$CURRENT_FINGERPRINT" >> $GITHUB_ENV
