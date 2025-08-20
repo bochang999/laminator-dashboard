@@ -119,17 +119,19 @@ jobs:
 
       - name: "Inject signing keystore and gradle"
         shell: bash
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           echo "🔑 Setting up signing configuration..."
           echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > android/app/release.keystore
           
           # Add signing config to gradle.properties
-          cat >> android/gradle.properties << EOF
-MY_STORE_FILE=release.keystore
-MY_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
-MY_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
-MY_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
-EOF
+          echo "MY_STORE_FILE=release.keystore" >> android/gradle.properties
+          echo "MY_STORE_PASSWORD=${KEYSTORE_PASSWORD}" >> android/gradle.properties
+          echo "MY_KEY_ALIAS=${KEY_ALIAS}" >> android/gradle.properties
+          echo "MY_KEY_PASSWORD=${KEY_PASSWORD}" >> android/gradle.properties
           
           # Verify keystore exists before build
           test -f android/app/release.keystore || { echo "::error:: keystore missing at android/app/release.keystore"; exit 1; }
