@@ -1746,18 +1746,23 @@ class LaminatorDashboard {
         // フィルム残量表示要素がない場合は何もしない（エラー回避）
     }
 
-    // CSV エクスポート機能 (Capacitor Filesystem対応版)
+    // CSV エクスポート機能 (累積保存対応版)
     async exportDataAsCsv() {
         const completedJobs = [];
+        const today = new Date();
+        const todayStr = today.toLocaleDateString('ja-JP');
+        
         this.filmSessions.forEach(session => {
             session.jobs.forEach(job => {
                 if (job.completed) {
                     const prodTime = job.productionTime || job.processingTime || 0;
                     const usageLength = job.usageLength || 0;
                     const sheets = job.sheets || 0;
+                    const completedAt = job.completedAt || new Date().toLocaleString('ja-JP');
                     
                     completedJobs.push({
-                        日時: new Date().toLocaleDateString('ja-JP'),
+                        日時: todayStr,
+                        完了時刻: completedAt,
                         ジョブ名: job.name || 'ジョブ',
                         生産枚数: sheets,
                         使用フィルム: `${(sheets * usageLength).toFixed(2)}m`,
@@ -1773,14 +1778,48 @@ class LaminatorDashboard {
             return;
         }
 
-        // CSV作成
-        const headers = Object.keys(completedJobs[0]);
-        const csvContent = [
-            '\uFEFF' + headers.join(','), // BOMを追加してExcelで正しく表示
-            ...completedJobs.map(job => headers.map(header => `"${job[header]}"`).join(','))
-        ].join('\n');
+        // 累積CSVファイル名（固定）
+        const filename = 'laminator-work-history.csv';
+        
+        // 既存CSVを読み込んで新しいデータを追加
+        let existingCsvContent = '';
+        let headers = Object.keys(completedJobs[0]);
+        
+        try {
+            if (isCapacitorEnvironment && CapacitorFilesystem) {
+                // APK環境で既存ファイルを読み込み
+                try {
+                    const existingFile = await CapacitorFilesystem.readFile({
+                        path: `LamiOpe/${filename}`,
+                        directory: CapacitorDirectory.Documents,
+                        encoding: CapacitorEncoding.UTF8
+                    });
+                    existingCsvContent = existingFile.data;
+                    console.log('✅ 既存CSV読み込み成功');
+                } catch (readError) {
+                    console.log('📝 新規CSVファイル作成（既存ファイルなし）');
+                    existingCsvContent = '';
+                }
+            }
+        } catch (error) {
+            console.warn('📄 既存CSV読み込みエラー、新規作成:', error);
+        }
 
-        const filename = `laminator_report_${new Date().toISOString().split('T')[0]}.csv`;
+        // CSVコンテンツ作成
+        let csvContent;
+        if (existingCsvContent && existingCsvContent.trim()) {
+            // 既存データに追加
+            const newDataRows = completedJobs.map(job => 
+                headers.map(header => `"${job[header]}"`).join(',')
+            ).join('\n');
+            csvContent = existingCsvContent.trim() + '\n' + newDataRows;
+        } else {
+            // 新規ファイル作成
+            csvContent = [
+                '\uFEFF' + headers.join(','), // BOMを追加してExcelで正しく表示
+                ...completedJobs.map(job => headers.map(header => `"${job[header]}"`).join(','))
+            ].join('\n');
+        }
 
         try {
             if (isCapacitorEnvironment && CapacitorFilesystem) {
@@ -1798,7 +1837,9 @@ class LaminatorDashboard {
                 });
                 
                 console.log('✅ CSV エクスポート完了:', completedJobs.length + '件');
-                this.showToast(`CSV を Documents/LamiOpe/${filename} に保存しました (${completedJobs.length}件)`, 'success');
+                const isNewFile = !existingCsvContent || !existingCsvContent.trim();
+                const actionText = isNewFile ? '作成' : '追記';
+                this.showToast(`業務履歴CSVに${actionText}しました (今回${completedJobs.length}件) - ${filename}`, 'success');
             } else {
                 // Web環境: Blob download fallback
                 console.log('🔄 Webブラウザ環境でCSVダウンロード...');
