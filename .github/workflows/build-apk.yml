@@ -156,11 +156,11 @@ jobs:
           echo "🔑 Setting up signing configuration..."
           echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > android/app/release.keystore
           
-          # Add signing config to gradle.properties (build.gradleと一致させる)
-          echo "LAMINATOR_STORE_FILE=release.keystore" >> android/gradle.properties
-          echo "LAMINATOR_STORE_PASSWORD=${KEYSTORE_PASSWORD}" >> android/gradle.properties
-          echo "LAMINATOR_KEY_ALIAS=${KEY_ALIAS}" >> android/gradle.properties
-          echo "LAMINATOR_KEY_PASSWORD=${KEY_PASSWORD}" >> android/gradle.properties
+          # Add signing config to android/gradle.properties (MY_* variables)
+          echo "MY_STORE_FILE=release.keystore" >> android/gradle.properties
+          echo "MY_STORE_PASSWORD=${KEYSTORE_PASSWORD}" >> android/gradle.properties
+          echo "MY_KEY_ALIAS=${KEY_ALIAS}" >> android/gradle.properties
+          echo "MY_KEY_PASSWORD=${KEY_PASSWORD}" >> android/gradle.properties
           
           # Verify keystore exists before build
           test -f android/app/release.keystore || { echo "::error:: keystore missing at android/app/release.keystore"; exit 1; }
@@ -201,7 +201,32 @@ jobs:
       - name: Gradle signing report
         working-directory: android
         shell: bash
-        run: ./gradlew signingReport
+        run: |
+          echo "🔍 Gradle signing configuration report:"
+          ./gradlew signingReport
+          
+          echo "🔍 MY_* properties verification:"
+          grep MY_ gradle.properties || echo "❌ No MY_* properties found"
+
+      - name: "Sign APK if unsigned (fallback)"
+        shell: bash
+        run: |
+          APK=$(ls -1 android/app/build/outputs/apk/release/*.apk | head -n1)
+          echo "🔍 Checking APK signature status..."
+          
+          if ! "$HOME/android-sdk/build-tools/35.0.0/apksigner" verify "$APK" >/dev/null 2>&1; then
+            echo "⚠️ Unsigned APK detected, applying manual signing..."
+            "$HOME/android-sdk/build-tools/35.0.0/apksigner" sign \
+              --ks android/app/release.keystore \
+              --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
+              --key-pass pass:${{ secrets.KEY_PASSWORD }} \
+              --out "${APK%.apk}-signed.apk" \
+              "$APK"
+            mv "${APK%.apk}-signed.apk" "$APK"
+            echo "✅ Manual signing completed"
+          else
+            echo "✅ APK already signed by Gradle"
+          fi
 
       - name: "Print signing certificate SHA-256"
         shell: bash

@@ -19,34 +19,33 @@ android {
 
     signingConfigs {
         release {
-            def ks = project.findProperty('LAMINATOR_STORE_FILE')
-            def sp = project.findProperty('LAMINATOR_STORE_PASSWORD')
-            def ka = project.findProperty('LAMINATOR_KEY_ALIAS')
-            def kp = project.findProperty('LAMINATOR_KEY_PASSWORD')
+            // CIで android/gradle.properties に書いた値を読む
+            def ks = project.findProperty('MY_STORE_FILE') ?: 'release.keystore'
+            def sp = project.findProperty('MY_STORE_PASSWORD')
+            def ka = project.findProperty('MY_KEY_ALIAS')
+            def kp = project.findProperty('MY_KEY_PASSWORD')
+
             if (ks && sp && ka && kp) {
                 storeFile file(ks)
                 storePassword sp
                 keyAlias ka
                 keyPassword kp
+            } else {
+                throw new GradleException("Signing config incomplete: check gradle.properties (MY_*)")
             }
         }
     }
 
     buildTypes {
         release {
-            if (project.hasProperty('LAMINATOR_STORE_FILE')) {
-                signingConfig signingConfigs.release
-            } else {
-                throw new GradleException("Release signing props (-P LAMINATOR_*) are missing")
-            }
+            signingConfig signingConfigs.release   // ← これが肝
             minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
         debug {
-            // -P がある場合のみ同一鍵で署名（実機上書き検証を容易に）
-            if (project.hasProperty('LAMINATOR_STORE_FILE')) {
-                signingConfig signingConfigs.release
-            }
+            // デバッグでも同じ署名を使用（一貫性のため）
+            signingConfig signingConfigs.release
         }
     }
 
