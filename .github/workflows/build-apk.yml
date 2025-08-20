@@ -39,7 +39,10 @@ jobs:
           curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-12266719_latest.zip -o cmdtools.zip
           unzip -q cmdtools.zip -d "$ANDROID_SDK_ROOT"/cmdline-tools
           mv "$ANDROID_SDK_ROOT"/cmdline-tools/cmdline-tools "$ANDROID_SDK_ROOT"/cmdline-tools/latest
+          # ← 重要：両方を同じ値でエクスポート
           echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "sdk.dir=$HOME/android-sdk" > local.properties
 
       - name: Accept Android SDK licenses (non-interactive)
         run: yes | "$HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager" --licenses
@@ -56,6 +59,20 @@ jobs:
           echo "🔍 Verifying no pending licenses remain..."
           echo n | "$HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager" --licenses || true
           echo "✅ License verification completed"
+
+      - name: Guard - SDK path must be unified
+        shell: bash
+        run: |
+          echo "🔍 Verifying SDK path consistency..."
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          if [ "$ANDROID_HOME" != "$ANDROID_SDK_ROOT" ]; then
+            echo "::error:: ANDROID_HOME and ANDROID_SDK_ROOT differ. Set both to the same path."
+            exit 1
+          fi
+          test -f local.properties && grep -q "sdk.dir=$ANDROID_SDK_ROOT" local.properties || {
+            echo "::error:: local.properties sdk.dir mismatch"; exit 1; }
+          echo "✅ SDK path verification passed"
 
       - name: Install dependencies
         run: npm install
