@@ -1,0 +1,198 @@
+# Ver.8.7 ビルドエラー報告書（他AI相談用）
+
+## 🚨 発生したエラー
+
+### エラー概要
+**場所**: キーストアファイルパス  
+**エラー**: `Keystore file '/home/runner/work/laminator-dashboard/laminator-dashboard/android/app/app/release.keystore' not found`  
+**原因**: gradle.propertiesのMY_STORE_FILE設定とキーストア実際配置先の不整合
+
+### 具体的エラーメッセージ
+```
+Execution failed for task ':app:validateSigningRelease'.
+> Keystore file '/home/runner/work/laminator-dashboard/laminator-dashboard/android/app/app/release.keystore' not found for signing config 'release'.
+```
+
+**問題**: パスに`app/app/`が重複している（正しくは`android/app/release.keystore`）
+
+## 📋 これまでの修正履歴
+
+### Ver.8.5からの問題解決経緯
+1. **Ver.8.5**: JDK17、SDK未承認、gradlew不存在で失敗
+2. **Ver.8.6**: JDK21、SDK35、gradlew問題解決 → AWK構文エラーで失敗  
+3. **Ver.8.7**: AWK構文順序修正 → キーストアパス問題で失敗（現在）
+
+### Ver.8.7で実装した内容
+
+#### 1. JDK 17→21への更新 ✅（Ver.8.6で解決済み）
+```yaml
+env:
+  JAVA_VERSION: '21'
+- name: Setup Java
+  with:
+    java-version: '21'
+```
+
+#### 2. Android SDK API 35の明示インストール ✅（Ver.8.6で解決済み）
+```yaml
+- name: Install Android SDK packages
+  run: |
+    sdkmanager --install \
+      "platforms;android-35" \
+      "build-tools;35.0.0" \
+      "platform-tools"
+```
+
+#### 3. SDKライセンス非対話承認 ✅（Ver.8.6で解決済み）
+```yaml
+- name: Accept Android licenses (non-interactive)
+  run: yes | sdkmanager --licenses
+```
+
+#### 4. Android生成の順序一本化 ✅（Ver.8.6で解決済み）
+```yaml
+- name: Initialize Capacitor (once only)
+  run: |
+    rm -rf capacitor.config.* android ios electron
+    npx cap init "${{ env.APP_NAME }}" "${{ env.APP_ID }}" --web-dir="www"
+    npx cap add android
+```
+
+#### 5. AWK構文順序修正 ✅（Ver.8.7で実装）
+```yaml
+# Ver.8.6の問題: 定義前参照
+/defaultConfig {/ → signingConfig signingConfigs.release (参照)
+/buildTypes {/ → signingConfigs {...} 定義
+
+# Ver.8.7の修正: 正しい順序
+/android {/ → signingConfigs {...} 定義 (最初)
+/defaultConfig {/ → signingConfig signingConfigs.release (参照)
+```
+
+#### 6. 署名設定の問題 ❌（Ver.8.7で新たに発覚）
+```yaml
+# キーストア復元（成功）
+echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > android/app/release.keystore
+
+# gradle.properties設定（問題箇所）
+cat >> android/gradle.properties <<'EOF'
+MY_STORE_FILE=app/release.keystore  # ← ここが問題
+MY_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
+MY_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
+MY_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
+EOF
+```
+
+## 🔍 Ver.8.7での新たな問題
+
+### キーストアパス問題の詳細
+1. **実際のキーストア配置**: `android/app/release.keystore`
+2. **gradle.propertiesの設定**: `MY_STORE_FILE=app/release.keystore`  
+3. **Gradleが探すパス**: `android/app/` + `app/release.keystore` = `android/app/app/release.keystore`
+4. **結果**: パスが`app/app/`と重複してファイルが見つからない
+
+### 環境情報（Ver.8.7ビルド時）
+```
+NODE_VERSION: 20
+JAVA_VERSION: 21
+JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.8-9/x64
+ANDROID_HOME: /usr/local/lib/android/sdk
+VERSION_TAG: 8.4.97
+SIGNING_MODE: bootstrap-temporary
+```
+
+## 📊 成功した部分（Ver.8.7）
+
+### ✅ 正常動作確認済み
+1. **Gradle 8.11.1**: 正常ダウンロード・起動
+2. **Java環境**: JDK 21で完全動作
+3. **Android SDK**: API 35インストール成功
+4. **Capacitor**: android/gradlew正常生成
+5. **コンパイル**: 全モジュールのJava/Kotlinコンパイル成功
+6. **リソース処理**: アイコン・リソース・マニフェスト処理完了
+7. **署名設定注入**: AWK構文エラー解決、正常注入
+8. **キーストアファイル**: `android/app/release.keystore`に正常作成
+
+### ❌ 失敗した部分
+- **validateSigningRelease**: パス設定ミスによりキーストア発見不可
+
+## 🛠️ 必要な修正内容
+
+### キーストアパス修正が必要
+```yaml
+# 現在（問題）
+MY_STORE_FILE=app/release.keystore
+
+# 修正案1: 相対パス修正
+MY_STORE_FILE=release.keystore
+
+# 修正案2: 絶対パス指定  
+MY_STORE_FILE=/home/runner/work/laminator-dashboard/laminator-dashboard/android/app/release.keystore
+
+# 修正案3: ワーキングディレクトリ考慮
+MY_STORE_FILE=../app/release.keystore
+```
+
+## 🎯 現在の状況まとめ
+
+### 解決済み問題（5/6）
+1. ✅ JDK 17→21: 完全解決
+2. ✅ Android SDK API 35: 完全解決  
+3. ✅ SDKライセンス: 完全解決
+4. ✅ gradlew不存在: 完全解決
+5. ✅ AWK構文エラー: 完全解決
+
+### 残り問題（1/6）
+6. ❌ キーストアパス設定: MY_STORE_FILE設定の修正が必要
+
+### 期待される次ステップ
+Ver.8.8でキーストアパス設定を修正すれば、全6問題が解決され、APKビルド成功の見込み。
+
+## 📝 技術的詳細
+
+### 実行されたAWKスクリプト（Ver.8.7）
+```awk
+/android {/ { 
+    print; 
+    print "    signingConfigs {"; 
+    print "        release {"; 
+    print "            storeFile file(MY_STORE_FILE)"; 
+    print "            storePassword MY_STORE_PASSWORD"; 
+    print "            keyAlias MY_KEY_ALIAS"; 
+    print "            keyPassword MY_KEY_PASSWORD"; 
+    print "        }"; 
+    print "    }"; 
+    print ""; 
+    next 
+}
+/defaultConfig {/ { 
+    print; 
+    print "        signingConfig signingConfigs.release"; 
+    next 
+}
+/buildTypes {/ && /release {/ {
+    print;
+    getline;
+    print "            signingConfig signingConfigs.release";
+    print;
+    next
+}
+```
+
+このスクリプトは正常に動作し、Gradle構文エラーは完全に解決された。
+
+### Gradleビルド進行状況
+- **Configure project**: 成功
+- **Task実行**: 209タスク中203実行、6スキップ
+- **コンパイル**: 全モジュール成功
+- **リソース処理**: 完了
+- **失敗箇所**: validateSigningReleaseタスクのみ
+
+## 💡 他AIへの相談ポイント
+
+1. **キーストアパス設定の最適解**: MY_STORE_FILEの正しい設定方法
+2. **Gradle作業ディレクトリ**: android/app/build.gradle実行時の相対パス基準
+3. **Capacitor署名設定**: Capacitorプロジェクトでの標準的なキーストア配置
+4. **代替アプローチ**: AWKによる動的注入以外の署名設定方法
+
+Ver.8.5〜8.7で段階的に問題を解決してきており、最後の1問題の解決で完全復旧の見込み。

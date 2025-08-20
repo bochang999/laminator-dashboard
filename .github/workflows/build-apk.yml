@@ -119,7 +119,7 @@ jobs:
             
             # Add signing config to gradle.properties
             cat >> android/gradle.properties <<'EOF'
-          MY_STORE_FILE=app/release.keystore
+          MY_STORE_FILE=release.keystore
           MY_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
           MY_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
           MY_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
@@ -138,7 +138,7 @@ jobs:
             
             # Add temporary signing config
             cat >> android/gradle.properties <<'EOF'
-          MY_STORE_FILE=app/release.keystore
+          MY_STORE_FILE=release.keystore
           MY_STORE_PASSWORD=temp2025
           MY_KEY_ALIAS=laminator-temp
           MY_KEY_PASSWORD=temp2025
@@ -146,6 +146,11 @@ jobs:
           
             echo "SIGNING_MODE=bootstrap-temporary" >> $GITHUB_ENV
           fi
+          
+          # Verify keystore exists before build
+          echo "🔍 Verifying keystore exists..."
+          test -f android/app/release.keystore || { echo "::error::keystore missing at android/app/release.keystore"; exit 1; }
+          echo "✅ Keystore verified"
           
           # Inject signingConfigs to app/build.gradle (if not exists)
           FILE=android/app/build.gradle
