@@ -40,7 +40,7 @@ android {
         release {
             signingConfig signingConfigs.release   // ← これが肝
             minifyEnabled false
-            shrinkResources false
+            shrinkResources true  // 未使用リソース削除でAPKサイズ最適化
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
         debug {
