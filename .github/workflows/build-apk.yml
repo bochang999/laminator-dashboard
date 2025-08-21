@@ -212,19 +212,25 @@ jobs:
         shell: bash
         run: |
           echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > ks.jks
+          # keystore指紋は連続小文字hexへ（空白とコロンを除去）
           keytool -list -v -keystore ks.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
-            | sed -n 's/.*SHA256: //p' | head -1 | tr -d ' :\n' | tr 'A-Z' 'a-z' > KEYSTORE.sha256
-          echo "🔑 Keystore SHA-256: $(cat KEYSTORE.sha256)"
+            | sed -n 's/.*SHA256: //p' | head -1 | tr -d '[:space:]:' | tr 'A-Z' 'a-z' > KEYSTORE.sha256
+          echo "🔑 Keystore SHA-256 (normalized): $(cat KEYSTORE.sha256)"
+
           if [ -n "${{ secrets.GOLDEN_FINGERPRINT }}" ]; then
-            echo "${{ secrets.GOLDEN_FINGERPRINT }}" | tr -d '[:space:]' | tr 'A-Z' 'a-z' > expected.sha256
-            if ! diff -q expected.sha256 KEYSTORE.sha256 >/dev/null; then
-              echo "::error:: GOLDEN_FINGERPRINT != Keystore fingerprint（Secrets不整合）"
-              echo "Expected: $(cat expected.sha256)"
-              echo "Keystore: $(cat KEYSTORE.sha256)"
+            # 期待値（Secret）も同じ規則で正規化：空白＆コロン除去＋小文字化
+            echo "${{ secrets.GOLDEN_FINGERPRINT }}" | tr -d '[:space:]:' | tr 'A-Z' 'a-z' > expected.sha256
+
+            echo "🔍 Debug:"
+            echo "   Expected(raw): ${{ secrets.GOLDEN_FINGERPRINT }}"
+            echo "   Expected(norm): $(cat expected.sha256)"
+            echo "   Keystore(norm): $(cat KEYSTORE.sha256)"
+
+            diff -q expected.sha256 KEYSTORE.sha256 >/dev/null || {
+              echo "::error:: GOLDEN_FINGERPRINT != Keystore fingerprint（フォーマット不整合）"
               exit 1
-            else
-              echo "✅ Keystore fingerprint matches GOLDEN_FINGERPRINT"
-            fi
+            }
+            echo "✅ Keystore fingerprint matches GOLDEN_FINGERPRINT"
           else
             echo "📋 No GOLDEN_FINGERPRINT configured"
           fi
@@ -291,30 +297,14 @@ jobs:
         shell: bash
         run: |
           if [ -n "${{ secrets.GOLDEN_FINGERPRINT }}" ] && [ -n "${{ env.CURRENT_FINGERPRINT }}" ]; then
-            exp="$(echo "${{ secrets.GOLDEN_FINGERPRINT }}" | tr -d '[:space:]' | tr 'A-Z' 'a-z')"
-            cur="$(echo "${{ env.CURRENT_FINGERPRINT }}" | tr -d '[:space:]' | tr 'A-Z' 'a-z')"
+            exp="$(echo "${{ secrets.GOLDEN_FINGERPRINT }}" | tr -d '[:space:]:' | tr 'A-Z' 'a-z')"
+            cur="$(echo "${{ env.CURRENT_FINGERPRINT }}" | tr -d '[:space:]:' | tr 'A-Z' 'a-z')"
             echo "🚨 FINGERPRINT GATE ACTIVATED"
-            echo "🔍 Normalized comparison:"
-            echo "   Expected: $exp"
-            echo "   Current:  $cur"
-            
-            if [ "$exp" = "$cur" ]; then
-              echo "✅ FINGERPRINT GATE PASSED - Signature consistent"
-            else
-              echo "❌ FINGERPRINT GATE FAILED"
-              echo "   Raw Expected: ${{ secrets.GOLDEN_FINGERPRINT }}"
-              echo "   Raw Current:  ${{ env.CURRENT_FINGERPRINT }}"
-              if [ "${{ env.SIGNING_MODE }}" = "github-secrets-persistent" ]; then
-                echo "💥 BUILD TERMINATED - Signature mismatch in persistent mode"
-                echo "💡 Update GOLDEN_FINGERPRINT secret to: ${{ env.CURRENT_FINGERPRINT }}"
-                exit 1
-              else
-                echo "⚠️ Bootstrap mode - Set GOLDEN_FINGERPRINT to: ${{ env.CURRENT_FINGERPRINT }}"
-              fi
-            fi
+            echo "   Expected(norm): $exp"
+            echo "   Current(norm):  $cur"
+            test "$exp" = "$cur" && echo "✅ PASSED" || { echo "❌ FAILED"; exit 1; }
           else
             echo "📋 Gate bypassed (missing expected or current fingerprint)"
-            echo "💡 To enable gate: Add GOLDEN_FINGERPRINT secret with value: ${{ env.CURRENT_FINGERPRINT }}"
           fi
 
       - name: Upload APK Artifact
