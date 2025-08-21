@@ -77,19 +77,41 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build web assets (recursive copy)
+      - name: Build web assets (whitelist approach)
         run: |
-          echo "📦 Preparing web assets for Capacitor..."
+          echo "📦 Preparing web assets for Capacitor (whitelist only)..."
           rm -rf www && mkdir -p www
           
-          # Recursive copy with exclusions
-          rsync -a --delete \
-            --exclude='.git' --exclude='.github' --exclude='android' \
-            --exclude='node_modules' --exclude='*.log' \
+          # Clean any gradle caches before copying (safety)
+          rm -rf .gradle .parcel-cache .vite-cache .next dist build || true
+          
+          # Whitelist approach: only copy needed files
+          rsync -a --delete --prune-empty-dirs \
+            --include '/index.html' \
+            --include '/manifest.json' \
+            --include '/sw.js' \
+            --include '/service-worker.js' \
+            --include '/favicon.*' \
+            --include '/icon-*.png' \
+            --include '/assets/***' \
+            --include '/css/***' \
+            --include '/js/***' \
+            --include '/images/***' \
+            --include '/script.js' \
+            --include '/style.css' \
+            --exclude '*' \
             ./ www/
           
-          echo "✅ Web assets copied recursively to www/"
-          ls -la www/ | head -10
+          # Safety check: fail if www too large
+          WWW_SIZE=$(du -sm www | cut -f1)
+          echo "📊 www directory size: ${WWW_SIZE} MB"
+          if [ "$WWW_SIZE" -gt 10 ]; then
+            echo "::error:: www directory too large (${WWW_SIZE} MB), likely contains unwanted files"
+            echo "=== Large files in www ===" 
+            find www -type f -size +1M -ls || true
+            exit 1
+          fi
+          echo "✅ Web assets prepared safely (${WWW_SIZE} MB)"
 
       - name: Initialize Capacitor (once only)
         run: |
@@ -197,6 +219,25 @@ jobs:
         run: |
           echo "🏗️ Building signed APK with injected keystore..."
           ./gradlew clean assembleRelease --no-daemon --stacktrace
+
+      - name: "🔍 Investigate APK Size Problem"
+        shell: bash
+        run: |
+          echo "=== WebDir Size Investigation ==="
+          du -sh www/ || echo "www/ not found"
+          echo "=== www/ contents (hidden folders included) ==="
+          ls -la www/ | head -50 || echo "www/ listing failed"
+          echo "=== Looking for junk folders in www/ ==="
+          find www/ -maxdepth 3 \( -name ".gradle" -o -name "node_modules" -o -name ".git" -o -name "android" \) -prune -print -o -type f -size +10M -print || echo "No large files/folders found"
+          
+          echo "=== APK Content Analysis ==="
+          APK=$(ls -1 android/app/build/outputs/apk/release/*.apk | head -n1)
+          echo "APK file: $APK"
+          APK_SIZE=$(du -m "$APK" | cut -f1)
+          echo "APK size: ${APK_SIZE} MB"
+          
+          echo "=== Top 40 largest items inside APK ==="
+          unzip -l "$APK" | awk '{print $1,$4}' | sort -nr | head -40
 
       - name: Gradle signing report
         working-directory: android
@@ -306,6 +347,21 @@ jobs:
           else
             echo "📋 Gate bypassed (missing expected or current fingerprint)"
           fi
+
+      - name: "🎯 Verify APK Size (Regression Prevention)"
+        shell: bash
+        run: |
+          APK_SIZE=$(du -m "${{ env.APK_FILE }}" | cut -f1)
+          echo "📊 Final APK size: ${APK_SIZE} MB"
+          
+          if [ "$APK_SIZE" -gt 20 ]; then
+            echo "::error:: APK too large (${APK_SIZE} MB) - Expected: 3-10MB"
+            echo "=== Regression detected, investigating ==="
+            unzip -l "${{ env.APK_FILE }}" | awk '{print $1,$4}' | sort -nr | head -20
+            exit 1
+          fi
+          
+          echo "✅ APK size acceptable: ${APK_SIZE} MB"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
