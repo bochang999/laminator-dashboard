@@ -1,0 +1,54 @@
+{
+    "name": "ラミオペ・ダッシュボード",
+    "short_name": "ラミオペ",
+    "description": "ラミネート加工作業管理ツール - 時間計算とフィルム消費シミュレーター",
+    "start_url": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "theme_color": "#2196F3",
+    "background_color": "#ffffff",
+    "scope": "/",
+    "lang": "ja",
+    "icons": [
+        {
+            "src": "icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "categories": ["productivity", "utilities", "business"],
+    "shortcuts": [
+        {
+            "name": "時間計算機",
+            "short_name": "時間計算",
+            "description": "作業時間を計算する",
+            "url": "/?tab=timeCalc",
+            "icons": [
+                {
+                    "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOTYiIGhlaWdodD0iOTYiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTExLjk5IDJDNi40NyAyIDIgNi40OCAyIDEyczQuNDcgMTAgOS45OSAxMEMxNy41MiAyMiAyMiAxNy41MiAyMiAxMlMxNy41MiAyIDExLjk5IDJ6TTEyIDIwYy00LjQyIDAtOC0zLjU4LTgtOHMzLjU4LTggOC04IDggMy41OCA4IDhzLTMuNTggOC04IDh6IiBmaWxsPSIjMjE5NkYzIi8+CjxwYXRoIGQ9Im0xMi41IDdMMTEgN3Y2bDUuMjUgMy4xNS43NS0xLjIzLTQuNS0yLjY3eiIgZmlsbD0iIzIxOTZGMyIvPgo8L3N2Zz4K",
+                    "sizes": "96x96"
+                }
+            ]
+        },
+        {
+            "name": "フィルム判定",
+            "short_name": "フィルム",
+            "description": "フィルム消費をシミュレート",
+            "url": "/?tab=filmSim",
+            "icons": [
+                {
+                    "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOTYiIGhlaWdodD0iOTYiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE4IDRsLTIgM2gtM2wgMi0zaDN6bTEgMTFIMTlWOWgtNHYyaDR2NGgtNHYyaDR2NGgtNHYyaDR6TTkgMTlWNUg1djE0aDR6IiBmaWxsPSIjRkY5ODAwIi8+CjxyZWN0IHg9IjciIHk9IjUiIHdpZHRoPSIxMCIgaGVpZ2h0PSIxNCIgcng9IjEiIGZpbGw9IiNGRkY1RjUiLz4KPC9zdmc+Cg==",
+                    "sizes": "96x96"
+                }
+            ]
+        }
+    ],
+    "prefer_related_applications": false
+}
