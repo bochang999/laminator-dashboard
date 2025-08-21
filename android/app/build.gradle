@@ -39,7 +39,7 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release   // ← これが肝
-            minifyEnabled false
+            minifyEnabled true   // コード最適化有効（Capacitor対応ProGuardルール付き）
             shrinkResources true  // 未使用リソース削除でAPKサイズ最適化
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
