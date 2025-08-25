@@ -227,39 +227,33 @@ jobs:
           ./gradlew clean || echo "Clean skipped (first run)"
           cd ..
 
-      - name: Create Official Laminator Keystore (One-Time Migration)
+      - name: Setup Keystore from GitHub Secrets (Fixed Update Error)
         run: |
-          echo "🔑 Creating official Laminator keystore for consistent signing..."
+          echo "🔑 Setting up keystore from GitHub Secrets (update error fix)..."
           cd android
           
-          # Create official keystore for future use (will be stored in GitHub Secrets)
-          if [ ! -f "laminator-official.keystore" ]; then
-            echo "🔧 Generating official Laminator keystore for long-term use..."
-            keytool -genkeypair -v -keystore laminator-official.keystore \
-              -alias laminator-official -keyalg RSA -keysize 4096 -validity 36500 \
-              -dname "CN=Laminator Dashboard Official,O=BochangDev,C=JP" \
-              -storepass laminator2025official -keypass laminator2025official
-            echo "✅ Official keystore created successfully"
+          # Decode keystore from GitHub Secrets
+          echo "🔧 Decoding keystore from KEYSTORE_B64 secret..."
+          if [ ! -z "${{ secrets.KEYSTORE_B64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_B64 }}" | base64 --decode > lamidash-release.keystore
+            echo "✅ Keystore decoded successfully from secrets"
             
-            # Display keystore fingerprint for Secrets setup
-            echo "📄 Keystore fingerprint (store this for verification):"
-            keytool -list -v -keystore laminator-official.keystore -alias laminator-official -storepass laminator2025official | grep "SHA256:"
+            # Verify keystore
+            echo "📄 Verifying keystore fingerprint..."
+            keytool -list -v -keystore lamidash-release.keystore -alias ${{ secrets.KEY_ALIAS }} -storepass ${{ secrets.KEYSTORE_PASSWORD }} | grep "SHA256:" || echo "⚠️ Fingerprint extraction failed"
             
-            # Convert to base64 for GitHub Secrets (display for manual setup)
-            echo "📋 Base64 for GitHub Secrets (KEYSTORE_B64):"
-            base64 -w 0 laminator-official.keystore 2>/dev/null || base64 laminator-official.keystore | tr -d '\n'
-            echo ""
           else
-            echo "✅ Using existing official keystore"
+            echo "❌ KEYSTORE_B64 secret not found - cannot build signed APK"
+            exit 1
           fi
           
-          # Set environment variables for build
+          # Set environment variables for build (using secrets)
           echo "KEYSTORE_EXISTS=true" >> $GITHUB_ENV
-          echo "KEYSTORE_FILE=laminator-official.keystore" >> $GITHUB_ENV
-          echo "KEYSTORE_PASSWORD=laminator2025official" >> $GITHUB_ENV
-          echo "KEY_ALIAS=laminator-official" >> $GITHUB_ENV
-          echo "KEY_PASSWORD=laminator2025official" >> $GITHUB_ENV
-          echo "SIGNING_MODE=official-migration" >> $GITHUB_ENV
+          echo "KEYSTORE_FILE=lamidash-release.keystore" >> $GITHUB_ENV
+          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+          echo "SIGNING_MODE=secrets-based" >> $GITHUB_ENV
           cd ..
 
       - name: Skip Golden Gradle Template (Not Needed for Capacitor Official Signing)
@@ -359,8 +353,8 @@ jobs:
               exit 1
           fi
           
-          # 最終APKファイル作成
-          FINAL_NAME="lamidash_${{ env.VERSION_TAG }}_capacitor_official.apk"
+          # 最終APKファイル作成 (update error fix - consistent naming)
+          FINAL_NAME="lamidash_${{ env.VERSION_TAG }}_update_fixed.apk"
           cp "$APK_SOURCE" "$FINAL_NAME"
           
           echo "✅ Official Capacitor signed APK created: $FINAL_NAME"
