@@ -1,0 +1,84 @@
+# 🔐 Laminator Dashboard - Production APK Signing Setup
+
+## GitHub Secrets Configuration
+
+Production APK署名システムを有効化するため、以下のGitHub Secretsを設定してください：
+
+### 必須Secrets
+
+#### 1. KEYSTORE_BASE64
+```
+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
+```
+
+#### 2. KEYSTORE_PASSWORD
+```
+laminator2025
+```
+
+#### 3. KEY_ALIAS
+```
+laminator-key
+```
+
+#### 4. KEY_PASSWORD
+```
+laminator2025
+```
+
+## 設定手順
+
+### 1. GitHub Repository Settings
+1. GitHubリポジトリページにアクセス
+2. Settings タブをクリック
+3. 左メニューから "Secrets and variables" → "Actions" を選択
+
+### 2. Secrets追加
+以下の4つのSecretを順番に追加：
+
+**KEYSTORE_BASE64**:
+- Name: `KEYSTORE_BASE64`
+- Secret: 上記のBase64文字列をコピー&ペースト
+
+**KEYSTORE_PASSWORD**:
+- Name: `KEYSTORE_PASSWORD`
+- Secret: `laminator2025`
+
+**KEY_ALIAS**:
+- Name: `KEY_ALIAS`
+- Secret: `laminator-key`
+
+**KEY_PASSWORD**:
+- Name: `KEY_PASSWORD`
+- Secret: `laminator2025`
+
+## 🔐 署名システムの仕組み
+
+### Production Mode (GitHub Secrets設定済み)
+- GitHubActionsが実行時にSecretsからキーストアを復元
+- RecipeBox実証済みの署名プロセスで一貫性のあるAPK生成
+- ユーザーはアンインストール不要でAPK更新可能
+
+### Development Mode (GitHub Secrets未設定)
+- 自動的に開発用キーストアを生成
+- 一時的な署名でAPKをビルド
+- 機能テスト・開発用途での使用
+
+## ✅ 確認方法
+
+Secrets設定後、次回のGitHub Actions実行時に：
+
+1. ログで "🔐 Production keystore deployed successfully" が表示される
+2. Release情報で "Signing Mode: 🔐 Production Keystore" が表示される  
+3. APKの更新時にアンインストールが不要になる
+
+## 🛠️ 技術仕様
+
+- **Keystore Format**: JKS (Java KeyStore)
+- **Algorithm**: RSA 2048-bit
+- **Validity**: 10000 days (約27年間有効)
+- **Certificate**: CN=Laminator Dashboard, OU=Production, O=BochangDev, L=Tokyo, ST=Tokyo, C=JP
+
+---
+
+🎯 **重要**: このキーストアファイルは**唯一無二**のアプリ署名です。紛失すると将来のAPK更新ができなくなります。GitHub Secretsでの管理に加えて、ローカルファイル(`laminator-release.keystore`)も安全に保管してください。

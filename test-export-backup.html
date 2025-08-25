@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export & Backup Test</title>
+</head>
+<body>
+    <h1>📤 Export & Backup Test</h1>
+    
+    <h2>🧪 Test Dashboard Creation</h2>
+    <button id="createDummyDataBtn">📋 Create Dummy Data</button>
+    
+    <h2>📊 CSV Export Test</h2>
+    <button id="testCsvExportBtn">📋 Test CSV Export</button>
+    
+    <h2>💾 Backup Test</h2>
+    <button id="testBackupBtn">💾 Test Backup</button>
+    
+    <div id="debug-log" style="margin-top: 20px; padding: 10px; background: #f0f0f0; min-height: 200px; white-space: pre-wrap; font-family: monospace;"></div>
+    
+    <script src="script.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const debugLog = document.getElementById('debug-log');
+            
+            function log(message) {
+                debugLog.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+                console.log(message);
+            }
+            
+            log('Export & Backup test page loaded');
+            log('Dashboard object: ' + (typeof dashboard));
+            
+            // ダミーデータ作成
+            document.getElementById('createDummyDataBtn').addEventListener('click', () => {
+                log('Creating dummy data...');
+                
+                if (dashboard) {
+                    // テスト用のダミーセッション作成
+                    dashboard.filmSessions = [
+                        {
+                            id: 'session-1',
+                            filmLength: 100,
+                            filmRemaining: 75.5,
+                            status: 'active',
+                            jobs: [
+                                {
+                                    name: 'テストジョブA',
+                                    sheets: 50,
+                                    usageLength: 0.3,
+                                    processingTime: 25.5,
+                                    completed: true,
+                                    completedAt: new Date().toISOString()
+                                },
+                                {
+                                    name: 'テストジョブB',
+                                    sheets: 30,
+                                    usageLength: 0.5,
+                                    processingTime: 18.2,
+                                    completed: false
+                                }
+                            ]
+                        },
+                        {
+                            id: 'session-2',
+                            filmLength: 50,
+                            filmRemaining: 12.3,
+                            status: 'completed',
+                            jobs: [
+                                {
+                                    name: 'テストジョブC',
+                                    sheets: 80,
+                                    usageLength: 0.25,
+                                    processingTime: 35.7,
+                                    completed: true,
+                                    completedAt: new Date(Date.now() - 60000).toISOString()
+                                }
+                            ]
+                        }
+                    ];
+                    
+                    dashboard.workStarted = true;
+                    dashboard.workStartTime = '08:30';
+                    dashboard.targetEndTime = '17:00';
+                    dashboard.extraTime = 15;
+                    
+                    log('✅ Dummy data created successfully');
+                    log('- 2 film sessions with 3 jobs total');
+                    log('- Mixed completed/incomplete jobs');
+                } else {
+                    log('❌ Dashboard not available');
+                }
+            });
+            
+            // CSV エクスポートテスト
+            document.getElementById('testCsvExportBtn').addEventListener('click', async () => {
+                log('Testing CSV export...');
+                
+                if (dashboard && dashboard.exportDataAsCsv) {
+                    try {
+                        await dashboard.exportDataAsCsv();
+                        log('✅ CSV export test completed');
+                    } catch (error) {
+                        log('❌ CSV export test failed: ' + error.message);
+                    }
+                } else {
+                    log('❌ dashboard.exportDataAsCsv not found');
+                }
+            });
+            
+            // バックアップテスト
+            document.getElementById('testBackupBtn').addEventListener('click', async () => {
+                log('Testing backup...');
+                
+                if (dashboard && dashboard.backupData) {
+                    try {
+                        await dashboard.backupData();
+                        log('✅ Backup test completed');
+                    } catch (error) {
+                        log('❌ Backup test failed: ' + error.message);
+                    }
+                } else {
+                    log('❌ dashboard.backupData not found');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

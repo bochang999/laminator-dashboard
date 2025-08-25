@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Debug Test</title>
+</head>
+<body>
+    <h1>CSV Export Debug</h1>
+    <button id="testCsvBtn">📋 Test CSV Export</button>
+    <button id="testBackupBtn">💾 Test Backup</button>
+    
+    <div id="debug-log" style="margin-top: 20px; padding: 10px; background: #f0f0f0; min-height: 100px; white-space: pre-wrap;"></div>
+    
+    <script src="script.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const debugLog = document.getElementById('debug-log');
+            
+            function log(message) {
+                debugLog.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+                console.log(message);
+            }
+            
+            log('Debug page loaded');
+            log('Dashboard object: ' + (typeof dashboard));
+            
+            if (typeof dashboard !== 'undefined') {
+                log('Dashboard methods: ' + Object.getOwnPropertyNames(Object.getPrototypeOf(dashboard)).join(', '));
+                log('exportDataAsCsv method: ' + typeof dashboard.exportDataAsCsv);
+                log('backupData method: ' + typeof dashboard.backupData);
+            }
+            
+            document.getElementById('testCsvBtn').addEventListener('click', () => {
+                log('CSV button clicked');
+                if (dashboard && dashboard.exportDataAsCsv) {
+                    try {
+                        dashboard.exportDataAsCsv();
+                        log('exportDataAsCsv() called successfully');
+                    } catch (error) {
+                        log('Error calling exportDataAsCsv(): ' + error.message);
+                    }
+                } else {
+                    log('dashboard.exportDataAsCsv not found');
+                }
+            });
+            
+            document.getElementById('testBackupBtn').addEventListener('click', () => {
+                log('Backup button clicked');
+                if (dashboard && dashboard.backupData) {
+                    try {
+                        dashboard.backupData();
+                        log('backupData() called successfully');
+                    } catch (error) {
+                        log('Error calling backupData(): ' + error.message);
+                    }
+                } else {
+                    log('dashboard.backupData not found');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

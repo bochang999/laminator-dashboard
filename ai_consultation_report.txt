@@ -1,0 +1,278 @@
+# ラミオペ・ダッシュボード バックアップ・業務記録保存問題の相談資料
+
+## 現状の問題
+- 📤 バックアップボタンをクリックしても何も起こらない
+- 📋 業務記録CSVエクスポートボタンをクリックしても何も起こらない
+- エラーメッセージも表示されない
+- 他の機能（時間計算、ジョブ管理など）は完璧に動作している
+
+## 求めること
+- バックアップボタンをクリックした時にJSONファイルがダウンロードされること
+- 業務記録CSVエクスポートボタンをクリックした時にCSVファイルがダウンロードされること
+- Android APK環境とWebブラウザ両方で動作すること
+
+## 技術環境
+- **フレームワーク**: Capacitor 7 (HTML/JavaScript/CSS)
+- **ターゲット**: Android APK + Web PWA
+- **データ保存**: Capacitor Preferences API + localStorage フォールバック
+- **ファイルシステム**: Capacitor Filesystem API使用想定
+
+## 現在のHTMLボタン設定
+
+```html
+<!-- 設定モーダル内のバックアップボタン -->
+<button class="btn btn-primary" id="backup-data-btn" onclick="dashboard.backupData()">📤 進捗をバックアップ</button>
+<button class="btn btn-secondary" id="restore-data-btn" onclick="dashboard.triggerRestore()">📥 バックアップから復元</button>
+<input type="file" id="restore-file-input" accept=".json" style="display: none;" onchange="dashboard.restoreData(event)">
+
+<!-- レポートモーダル内のCSVエクスポートボタン -->
+<button id="exportCsvBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">📋 業務記録をCSV保存</button>
+```
+
+## 現在のJavaScriptコード（問題のある部分）
+
+### バックアップ機能のコード
+```javascript
+// バックアップデータ作成・ダウンロード機能 (Capacitor Filesystem対応版)
+async backupData() {
+    try {
+        console.log('🔄 バックアップデータ作成開始...');
+        const dataKey = 'laminator_dashboard_v3';
+        let data;
+        
+        if (isCapacitorEnvironment && CapacitorPreferences) {
+            // APK環境: Capacitor Preferences使用
+            console.log('🔄 Capacitor Preferencesからバックアップデータ取得...');
+            const result = await CapacitorPreferences.get({ key: dataKey });
+            data = result.value;
+        } else {
+            // Web環境: localStorage使用
+            console.log('🔄 localStorageからバックアップデータ取得...');
+            data = localStorage.getItem(dataKey);
+        }
+        
+        if (!data) {
+            this.showToast('バックアップするデータがありません', 'warning');
+            return;
+        }
+
+        const today = new Date();
+        const dateStr = today.getFullYear() + '-' + 
+            String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+            String(today.getDate()).padStart(2, '0');
+        const filename = `lami-ope-backup-${dateStr}.json`;
+
+        if (isCapacitorEnvironment && CapacitorFilesystem) {
+            // APK環境: Capacitor Filesystem API使用
+            try {
+                console.log('🔄 Capacitor Filesystem APIでファイル書き込み...');
+                
+                await CapacitorFilesystem.writeFile({
+                    path: filename,
+                    data: data,
+                    directory: 'DOCUMENTS', // Directory.Documents の文字列定数
+                    encoding: 'utf8' // Encoding.UTF8 の文字列定数
+                });
+                
+                console.log('✅ Capacitor Filesystemでバックアップ保存成功');
+                this.showToast(`バックアップファイルをDocuments/${filename}に保存しました`, 'success');
+                
+            } catch (fsError) {
+                console.warn('❌ Filesystem保存失敗、blob保存にfallback:', fsError);
+                this.fallbackBlobDownload(data, filename);
+            }
+        } else {
+            // Web環境またはfallback: blob保存
+            console.log('🔄 Webブラウザ環境でblob保存実行...');
+            this.fallbackBlobDownload(data, filename);
+        }
+    } catch (error) {
+        console.error('❌ バックアップエラー:', error);
+        this.showToast('バックアップに失敗しました', 'error');
+    }
+}
+
+// Fallback: Blob ダウンロード
+fallbackBlobDownload(data, filename) {
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    
+    setTimeout(() => {
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 100);
+    }, 100);
+    
+    this.showToast('バックアップファイルをダウンロードしました', 'success');
+}
+```
+
+### 復元機能のコード
+```javascript
+// 復元ファイル選択をトリガー
+triggerRestore() {
+    const fileInput = document.getElementById('restore-file-input');
+    fileInput.click();
+}
+
+// データ復元機能 (Capacitor Preferences対応版)
+async restoreData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = e.target.result;
+            JSON.parse(data); // 有効なJSONかチェック
+            const dataKey = 'laminator_dashboard_v3';
+            
+            if (isCapacitorEnvironment && CapacitorPreferences) {
+                // APK環境: Capacitor Preferences使用
+                console.log('🔄 Capacitor Preferencesに復元データ保存...');
+                
+                await CapacitorPreferences.set({
+                    key: dataKey,
+                    value: data
+                });
+                
+                console.log('✅ Capacitor Preferencesに復元完了');
+            } else {
+                // Web環境: localStorage使用
+                console.log('🔄 localStorageに復元データ保存...');
+                localStorage.setItem(dataKey, data);
+                console.log('✅ localStorageに復元完了');
+            }
+            
+            this.showToast('復元が完了しました。ページを更新します。', 'success');
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } catch (error) {
+            console.error('復元エラー:', error);
+            this.showToast('無効なバックアップファイルです', 'error');
+        }
+    };
+    
+    reader.readAsText(file);
+    
+    // ファイル選択をリセット（同じファイルでも再選択可能にする）
+    event.target.value = '';
+}
+```
+
+## 現在のアプリケーション初期化
+```javascript
+// アプリケーション初期化
+let dashboard;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    dashboard = new LaminatorDashboard();
+    window.dashboard = dashboard;  // HTMLから呼び出し可能にする
+    
+    // ヘッダーボタンのイベントリスナー設定（Ver.2.5 バグ修正）
+    const logTrigger = document.getElementById('log-page-trigger-icon');
+    if (logTrigger) {
+        logTrigger.addEventListener('click', showLogPage);
+        console.log('Log page trigger event listener added');
+    }
+    
+    // 設定ボタンのクリックイベントも念のため直接設定
+    const settingsBtn = document.querySelector('.header-btn');
+    if (settingsBtn && dashboard) {
+        settingsBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            dashboard.showSettings();
+        });
+        console.log('Settings button event listener added');
+    }
+});
+```
+
+## Capacitor設定
+```javascript
+// Capacitor プラグイン設定
+let CapacitorPreferences, CapacitorFilesystem;
+let isCapacitorEnvironment = false;
+
+// Capacitor環境判定とプラグイン初期化
+async function initializeCapacitor() {
+    console.log('🔄 Capacitor環境判定を開始...');
+    console.log('🔍 環境情報:', {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        hasCapacitor: typeof window.Capacitor !== 'undefined',
+        isNativePlatform: window.Capacitor ? window.Capacitor.isNativePlatform : false,
+        isAndroid: /Android/.test(navigator.userAgent),
+        locationProtocol: window.location.protocol
+    });
+    
+    try {
+        // Capacitor本体の存在確認と詳細判定
+        if (typeof window.Capacitor !== 'undefined') {
+            console.log('✅ Capacitorオブジェクト検出');
+            
+            // ネイティブプラットフォーム判定（複数の方法で確認）
+            const isNative = window.Capacitor.isNativePlatform || 
+                            window.Capacitor.isNative || 
+                            window.location.protocol === 'capacitor:' ||
+                            /Android/.test(navigator.userAgent);
+            
+            if (isNative) {
+                console.log('✅ ネイティブプラットフォーム環境を検出');
+                isCapacitorEnvironment = true;
+                
+                // 動的インポートでプラグインを読み込み
+                try {
+                    console.log('🔄 Capacitorプラグイン読み込み開始...');
+                    
+                    const { Preferences } = await import('https://unpkg.com/@capacitor/preferences@7/dist/esm/index.js');
+                    const { Filesystem, Directory, Encoding } = await import('https://unpkg.com/@capacitor/filesystem@7/dist/esm/index.js');
+                    
+                    CapacitorPreferences = Preferences;
+                    CapacitorFilesystem = Filesystem;
+                    
+                    console.log('✅ Capacitor Preferences & Filesystem プラグイン初期化成功');
+                    
+                } catch (pluginError) {
+                    console.error('❌ Capacitorプラグイン読み込みエラー:', pluginError);
+                    isCapacitorEnvironment = false;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('❌ Capacitor初期化中の予期しないエラー:', error);
+        isCapacitorEnvironment = false;
+    }
+    
+    console.log(`📱 最終判定: ${isCapacitorEnvironment ? 'Capacitor APK環境' : 'Web環境'}`);
+}
+```
+
+## 疑問点・調査してほしいこと
+
+1. **HTMLボタンとJavaScript関数の連携**: `onclick="dashboard.backupData()"` が正しく動作しているか？
+2. **エラーハンドリング**: なぜエラーメッセージも表示されないのか？
+3. **Capacitor Filesystem API**: Android環境での正しい使用方法は？
+4. **Blob ダウンロード**: Web環境でのファイルダウンロード方法に問題はないか？
+5. **CSVエクスポート**: `id="exportCsvBtn"` ボタンにイベントリスナーが設定されていない問題
+
+## 動作環境
+- **開発**: Termux (Android)
+- **テスト**: AndroidのWebView (APK)、Chrome/Firefox (Web)
+- **ビルド**: GitHub Actions + Capacitor 7
+
+## 追加情報
+- 他の機能（時間計算、フィルム管理、設定保存など）は全て正常動作
+- データの読み込み・表示は正常
+- 同じ開発者の他プロジェクト（RecipeBox）では同様の実装で成功している
+
+この問題を解決するための具体的なコード修正案をお願いします。特に、CSVエクスポートボタンのイベントリスナー設定方法と、Android環境でのファイルダウンロード実装の改善方法について知りたいです。
