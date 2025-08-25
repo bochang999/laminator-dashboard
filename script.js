@@ -2591,12 +2591,12 @@ class LaminatorDashboard {
                 } catch (fsError) {
                     console.warn('❌ Filesystem保存失敗、blob保存にfallback:', fsError);
                     this.showToast(`APKエラー: ${fsError.message || fsError}`, 'error');
-                    this.fallbackBlobDownload(data, filename);
+                    this.fallbackBlobDownload(data, filename, 'application/json');
                 }
             } else {
                 // Web環境またはfallback: blob保存
                 console.log('🔄 Webブラウザ環境でblob保存実行...');
-                this.fallbackBlobDownload(data, filename);
+                this.fallbackBlobDownload(data, filename, 'application/json');
             }
         } catch (error) {
             console.error('❌ バックアップエラー:', error);
@@ -2604,27 +2604,6 @@ class LaminatorDashboard {
         }
     }
 
-    // Fallback: Blob ダウンロード
-    fallbackBlobDownload(data, filename) {
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        
-        setTimeout(() => {
-            a.click();
-            setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }, 100);
-        }, 100);
-        
-        this.showToast('バックアップファイルをダウンロードしました', 'success');
-    }
 
     // 復元ファイル選択をトリガー
     triggerRestore() {
@@ -2675,6 +2654,144 @@ class LaminatorDashboard {
         
         // ファイル選択をリセット（同じファイルでも再選択可能にする）
         event.target.value = '';
+    }
+
+    // CSV形式でデータをエクスポート (Capacitor対応版)
+    async exportDataAsCsv() {
+        try {
+            const csvData = this.generateCsvData();
+            if (!csvData) {
+                this.showToast('エクスポートするデータがありません', 'warning');
+                return;
+            }
+
+            const today = new Date();
+            const dateStr = today.getFullYear() + '-' + 
+                String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                String(today.getDate()).padStart(2, '0');
+            const filename = `lami-ope-report-${dateStr}.csv`;
+
+            if (isCapacitorEnvironment && CapacitorFilesystem) {
+                // APK環境: Capacitor Filesystem API使用
+                try {
+                    console.log('🔄 Capacitor Filesystem APIでCSVファイル書き込み...');
+                    
+                    // Android 11+ スコープドストレージ対応: 権限確認とフォルダ作成
+                    await ensureFsReady();
+                    
+                    await CapacitorFilesystem.writeFile({
+                        path: `LamiOpe/${filename}`,
+                        data: csvData,
+                        directory: CapacitorDirectory.Documents,
+                        encoding: CapacitorEncoding.UTF8
+                    });
+                    
+                    console.log('✅ Capacitor FilesystemでCSV保存成功');
+                    this.showToast(`CSVファイルをDocuments/LamiOpe/${filename}に保存しました`, 'success');
+                    
+                } catch (fsError) {
+                    console.warn('❌ Filesystem保存失敗、blob保存にfallback:', fsError);
+                    this.showToast(`APKエラー: ${fsError.message || fsError}`, 'error');
+                    this.fallbackBlobDownload(csvData, filename, 'text/csv');
+                }
+            } else {
+                // Web環境またはfallback: blob保存
+                console.log('🔄 Webブラウザ環境でCSVファイル保存実行...');
+                this.fallbackBlobDownload(csvData, filename, 'text/csv');
+            }
+        } catch (error) {
+            console.error('❌ CSVエクスポートエラー:', error);
+            this.showToast('CSVエクスポートに失敗しました', 'error');
+        }
+    }
+
+    // CSVデータ生成
+    generateCsvData() {
+        if (!this.filmSessions || this.filmSessions.length === 0) {
+            return null;
+        }
+
+        const csvRows = [];
+        
+        // CSVヘッダー
+        csvRows.push('日付,セッションID,フィルム容量(m),使用量(m),残量(m),ジョブ数,ジョブ名,用紙長(mm),重なり幅(mm),枚数,使用長(m),処理時間(分),完了状況,開始時刻,完了時刻');
+        
+        this.filmSessions.forEach(session => {
+            const sessionDate = new Date(session.startTime).toLocaleDateString('ja-JP');
+            const sessionId = session.id;
+            const filmCapacity = session.filmCapacity || 0;
+            const filmUsed = session.filmUsed || 0;
+            const filmRemaining = session.filmRemaining || 0;
+            const jobCount = session.jobs?.length || 0;
+            
+            if (session.jobs && session.jobs.length > 0) {
+                session.jobs.forEach(job => {
+                    const jobName = `Job-${job.id}`;
+                    const paperLength = job.paperLength || 0;
+                    const overlapWidth = job.overlapWidth || 0;
+                    const sheets = job.sheets || 0;
+                    const usageLength = job.usageLength || 0;
+                    const processingTime = job.processingTime || 0;
+                    const completed = job.completed ? '完了' : '未完了';
+                    const startTime = job.timestamp ? new Date(job.timestamp).toLocaleTimeString('ja-JP') : '';
+                    const completedAt = job.completedAt ? new Date(job.completedAt).toLocaleTimeString('ja-JP') : '';
+                    
+                    csvRows.push([
+                        sessionDate,
+                        sessionId,
+                        filmCapacity,
+                        filmUsed,
+                        filmRemaining,
+                        jobCount,
+                        jobName,
+                        paperLength,
+                        overlapWidth,
+                        sheets,
+                        usageLength,
+                        processingTime,
+                        completed,
+                        startTime,
+                        completedAt
+                    ].join(','));
+                });
+            } else {
+                // ジョブがないセッション
+                csvRows.push([
+                    sessionDate,
+                    sessionId,
+                    filmCapacity,
+                    filmUsed,
+                    filmRemaining,
+                    jobCount,
+                    'なし',
+                    '', '', '', '', '', '', '', ''
+                ].join(','));
+            }
+        });
+        
+        return csvRows.join('\n');
+    }
+
+    // Fallback: Blobダウンロード（強化版）
+    fallbackBlobDownload(data, filename, contentType = 'application/json') {
+        const blob = new Blob([data], { type: contentType });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        
+        setTimeout(() => {
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+        }, 100);
+        
+        this.showToast(`${contentType.includes('csv') ? 'CSV' : 'バックアップ'}ファイルをダウンロードしました`, 'success');
     }
 }
 
