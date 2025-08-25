@@ -160,8 +160,19 @@
                     <button class="modal-close" onclick="dashboard.hideReport()">&times;</button>
                 </div>
                 <div class="modal-body" id="reportContent">
-                    <p><strong>開始時刻:</strong> <span id="reportStartTime">--:--</span></p>
-                    <p><strong>目標時刻:</strong> <span id="reportTargetTime">--:--</span></p>
+                    <div class="report-time-display">
+                        <div class="report-time-item">
+                            <div class="time-label">開始時刻</div>
+                            <div class="time-value" id="reportStartTime">--:--</div>
+                            <div class="time-action">業務開始時刻</div>
+                        </div>
+                        
+                        <div class="report-time-item">
+                            <div class="time-label">目標時刻</div>
+                            <div class="time-value" id="reportTargetTime">--:--</div>
+                            <div class="time-action">定時/残業設定</div>
+                        </div>
+                    </div>
                     
                     <div style="margin-top: 20px;">
                         <button id="exportCsvBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">📋 業務記録をCSV保存</button>
@@ -187,7 +198,7 @@
     </div>
     
     <footer style="text-align: center; padding: 10px; border-top: 1px solid #ccc; font-size: 12px; color: #888;">
-        Ver. 5.0 - Capacitor多層データ保存システム完全実装版
+        Ver. 6.9 - 更新エラー修正版（GitHub Secrets署名統合）
     </footer>
 
     <script src="script.js"></script>
