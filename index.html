@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ラミオペ・ダッシュボード</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
@@ -191,6 +191,35 @@
     </footer>
 
     <script src="script.js"></script>
+    
+    <!-- APK Status Bar初期化 -->
+    <script>
+        // APK環境でのStatus Bar設定
+        document.addEventListener('DOMContentLoaded', async function() {
+            if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                try {
+                    console.log('🔧 APK Status Bar初期化開始');
+                    
+                    // Status Barプラグインが利用可能な場合のみ実行
+                    if (window.Capacitor.Plugins.StatusBar) {
+                        await window.Capacitor.Plugins.StatusBar.setStyle({
+                            style: 'DARK'
+                        });
+                        await window.Capacitor.Plugins.StatusBar.setBackgroundColor({
+                            color: '#2C3E50'
+                        });
+                        await window.Capacitor.Plugins.StatusBar.setOverlaysWebView({
+                            overlay: false
+                        });
+                        console.log('✅ APK Status Bar設定完了');
+                    }
+                } catch (error) {
+                    console.log('⚠️ Status Bar設定失敗:', error);
+                }
+            }
+        });
+    </script>
+    
     <!-- テストスクリプト（開発時のみ有効化） -->
     <!-- <script src="test-v3.js"></script> -->
 </body>
