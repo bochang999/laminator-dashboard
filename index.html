@@ -138,9 +138,9 @@
                     <div class="settings-section">
                         <h4>データ管理</h4>
                         <div class="form-group">
-                            <button class="btn btn-primary" id="backup-data-btn" onclick="dashboard.backupData()">📤 進捗をバックアップ</button>
-                            <button class="btn btn-secondary" id="restore-data-btn" onclick="dashboard.triggerRestore()">📥 バックアップから復元</button>
-                            <input type="file" id="restore-file-input" accept=".json" style="display: none;" onchange="dashboard.restoreData(event)">
+                            <button class="btn btn-primary" id="backup-data-btn">📤 進捗をバックアップ</button>
+                            <button class="btn btn-secondary" id="restore-data-btn">📥 バックアップから復元</button>
+                            <input type="file" id="restore-file-input" accept=".json" style="display: none;">
                         </div>
                     </div>
                     
@@ -165,13 +165,8 @@
                     
                     <div style="margin-top: 20px;">
                         <button id="exportCsvBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">📋 業務記録をCSV保存</button>
-                        <button id="backup-data-btn" class="btn btn-secondary" style="width: 100%; margin-bottom: 10px;">💾 データバックアップ</button>
-                        <button id="restore-data-btn" class="btn btn-secondary" style="width: 100%; margin-bottom: 10px;">📂 データ復元</button>
                         <button id="clearJobsBtn" class="btn btn-danger" style="width: 100%;">🗑️ 本日のジョブを消去</button>
                     </div>
-                    
-                    <!-- 隠しファイル入力要素（復元用） -->
-                    <input type="file" id="restore-file-input" accept=".json" style="display: none;" />
                 </div>
             </div>
         </div>
