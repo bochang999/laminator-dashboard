@@ -1,225 +1,3 @@
-// ===== Capacitor プラグイン設定 Ver.5.0 改善版 =====
-// Sequential Thinking + Context7による技術検証済み実装
-let indexedDBSupported = false;
-
-// Capacitor Preferences動作テスト
-async function testCapacitorPreferences() {
-    if (!CapacitorPreferences) return;
-    
-    try {
-        const testKey = 'capacitor_test_key';
-        const testValue = 'test_success_' + Date.now();
-        
-        // 書き込みテスト
-        await CapacitorPreferences.set({
-            key: testKey,
-            value: testValue
-        });
-        
-        // 読み込みテスト
-        const result = await CapacitorPreferences.get({ key: testKey });
-        
-        if (result.value === testValue) {
-            console.log('✅ Capacitor Preferences 読み書きテスト成功');
-            
-            // テストデータクリーンアップ
-            await CapacitorPreferences.remove({ key: testKey });
-        } else {
-            console.error('❌ Capacitor Preferences テスト失敗: 読み込み値が不一致');
-            isCapacitorEnvironment = false;
-        }
-    } catch (error) {
-        console.error('❌ Capacitor Preferences テストエラー:', error);
-        isCapacitorEnvironment = false;
-    }
-}
-
-// 古いDOMContentLoadedは削除 - 新しい改善版を後で使用
-
-// Capacitor Preferences詳細設定
-async function configureCapacitorPreferences() {
-    try {
-        console.log('🔧 Capacitor Preferences 詳細設定を開始...');
-        
-        // 公式推奨: カスタムグループ設定でネイティブストレージを使用
-        await CapacitorPreferences.configure({
-            group: 'NativeStorage' // cordova-plugin-nativestorage互換性
-        });
-        
-        console.log('✅ Capacitor Preferences カスタムグループ設定完了');
-        
-        // 設定後の動作テスト
-        await testCapacitorPreferencesAdvanced();
-        
-    } catch (error) {
-        console.warn('⚠️ Capacitor Preferences設定警告:', error);
-        // 設定エラーでも処理続行（フォールバック対応）
-    }
-}
-
-// 高度なCapacitor Preferencesテスト
-async function testCapacitorPreferencesAdvanced() {
-    if (!CapacitorPreferences) return;
-    
-    try {
-        const testKey = 'advanced_test_key';
-        const complexTestData = {
-            timestamp: Date.now(),
-            data: {
-                array: [1, 2, 3, 'test'],
-                object: { nested: 'value' },
-                unicode: '日本語テスト'
-            }
-        };
-        const testValue = JSON.stringify(complexTestData);
-        
-        console.log('🔄 高度なCapacitor Preferencesテスト開始...');
-        
-        // 1. 複雑なデータの書き込みテスト
-        await CapacitorPreferences.set({
-            key: testKey,
-            value: testValue
-        });
-        
-        // 2. 即座の読み込みテスト
-        const immediateResult = await CapacitorPreferences.get({ key: testKey });
-        
-        // 3. データ整合性テスト
-        if (immediateResult.value === testValue) {
-            const parsedData = JSON.parse(immediateResult.value);
-            if (parsedData.timestamp === complexTestData.timestamp) {
-                console.log('✅ 高度なCapacitor Preferencesテスト成功');
-                console.log('📊 テストデータサイズ:', testValue.length, 'バイト');
-            } else {
-                console.error('❌ データ内容の整合性エラー');
-                isCapacitorEnvironment = false;
-            }
-        } else {
-            console.error('❌ 高度なCapacitor Preferencesテスト失敗');
-            isCapacitorEnvironment = false;
-        }
-        
-        // 4. キー一覧テスト
-        const keysResult = await CapacitorPreferences.keys();
-        console.log('📋 現在のキー一覧:', keysResult.keys);
-        
-        // 5. クリーンアップ
-        await CapacitorPreferences.remove({ key: testKey });
-        
-    } catch (error) {
-        console.error('❌ 高度なCapacitor Preferencesテストエラー:', error);
-        isCapacitorEnvironment = false;
-    }
-}
-
-// ===== IndexedDB フォールバック システム =====
-
-// IndexedDB初期化とサポート確認
-async function initializeIndexedDB() {
-    try {
-        console.log('🔄 IndexedDBサポート確認...');
-        
-        if (!window.indexedDB) {
-            console.log('❌ IndexedDBはサポートされていません');
-            return false;
-        }
-        
-        // IndexedDBテスト実行
-        const testRequest = indexedDB.open('laminator_test', 1);
-        
-        return new Promise((resolve) => {
-            testRequest.onerror = () => {
-                console.log('❌ IndexedDBテスト失敗');
-                resolve(false);
-            };
-            
-            testRequest.onsuccess = (event) => {
-                const db = event.target.result;
-                db.close();
-                indexedDB.deleteDatabase('laminator_test');
-                console.log('✅ IndexedDBサポート確認完了');
-                indexedDBSupported = true;
-                resolve(true);
-            };
-            
-            testRequest.onupgradeneeded = (event) => {
-                const db = event.target.result;
-                db.createObjectStore('test', { keyPath: 'id' });
-            };
-        });
-        
-    } catch (error) {
-        console.error('❌ IndexedDB初期化エラー:', error);
-        return false;
-    }
-}
-
-// IndexedDBでデータ保存
-async function saveToIndexedDB(key, value) {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open('laminator_dashboard', 1);
-        
-        request.onerror = () => reject(request.error);
-        
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            if (!db.objectStoreNames.contains('data')) {
-                db.createObjectStore('data', { keyPath: 'key' });
-            }
-        };
-        
-        request.onsuccess = (event) => {
-            const db = event.target.result;
-            const transaction = db.transaction(['data'], 'readwrite');
-            const store = transaction.objectStore('data');
-            
-            const saveRequest = store.put({ key: key, value: value, timestamp: Date.now() });
-            
-            saveRequest.onsuccess = () => {
-                console.log('✅ IndexedDBに保存成功:', key);
-                resolve();
-            };
-            
-            saveRequest.onerror = () => reject(saveRequest.error);
-        };
-    });
-}
-
-// IndexedDBからデータ読み込み
-async function loadFromIndexedDB(key) {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open('laminator_dashboard', 1);
-        
-        request.onerror = () => reject(request.error);
-        
-        request.onsuccess = (event) => {
-            const db = event.target.result;
-            
-            if (!db.objectStoreNames.contains('data')) {
-                resolve(null);
-                return;
-            }
-            
-            const transaction = db.transaction(['data'], 'readonly');
-            const store = transaction.objectStore('data');
-            const getRequest = store.get(key);
-            
-            getRequest.onsuccess = () => {
-                const result = getRequest.result;
-                if (result) {
-                    console.log('✅ IndexedDBから読み込み成功:', key);
-                    resolve(result.value);
-                } else {
-                    console.log('ℹ️ IndexedDB: キーが見つかりません:', key);
-                    resolve(null);
-                }
-            };
-            
-            getRequest.onerror = () => reject(getRequest.error);
-        };
-    });
-}
-
 // =====ここからログシステム Ver.2.4 =====
 // グローバルログ配列の初期化
 window.appLogs = [];
@@ -372,10 +150,9 @@ class LaminatorDashboard {
         this.init();
     }
 
-    async init() {
-        await this.loadData();
+    init() {
+        this.loadData();
         this.setupEventListeners();
-        this.autoStartWork();
         this.updateCurrentTime();
         this.updateTimeDisplay();
         this.updateFinishTime();
@@ -403,13 +180,6 @@ class LaminatorDashboard {
                 }
             });
         });
-
-        // 新機能のボタンにイベントリスナーを設定
-        const exportCsvBtn = document.getElementById('exportCsvBtn');
-        if (exportCsvBtn) exportCsvBtn.addEventListener('click', () => this.exportDataAsCsv());
-        
-        const clearJobsBtn = document.getElementById('clearJobsBtn');
-        if (clearJobsBtn) clearJobsBtn.addEventListener('click', () => this.clearTodaysJobs());
     }
 
     switchInputMode(mode) {
@@ -422,20 +192,6 @@ class LaminatorDashboard {
         } else {
             directMode.classList.remove('active');
             partsMode.classList.add('active');
-        }
-    }
-
-    // 自動業務開始
-    autoStartWork() {
-        if (!this.workStarted) {
-            const now = new Date();
-            const startTime = new Date();
-            startTime.setHours(8, 30, 0, 0); // 8:30に設定
-            
-            this.workStartTime = startTime;
-            this.workStarted = true;
-            this.saveData();
-            console.log("業務を8:30に自動開始しました。");
         }
     }
 
@@ -1484,16 +1240,7 @@ class LaminatorDashboard {
 
     // レポート表示
     showReport() {
-        // ===== Ver.2.17: レポート機能強化 =====
-        
-        // 開始・目標時刻をレポートに表示
-        if (this.workStartTime) {
-            document.getElementById('reportStartTime').textContent = this.workStartTime.toLocaleTimeString();
-        }
-        const targetTime = new Date();
-        const [hours, minutes] = this.targetEndTime.split(':');
-        targetTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        document.getElementById('reportTargetTime').textContent = targetTime.toLocaleTimeString();
+        // ===== Ver.2.9: XMLドキュメント仕様による計算ロジック完全置換 =====
         
         // 1. 完了済みジョブの抽出
         const completedJobs = [];
@@ -1517,21 +1264,10 @@ class LaminatorDashboard {
 
         // 3. サマリー計算
         const totalCompletedJobs = completedJobs.length;
-        const totalSheets = completedJobs.reduce((sum, job) => {
-            const sheets = job.sheets || 0;
-            return sum + (isNaN(sheets) ? 0 : sheets);
-        }, 0);
-        const totalUsedMeters = completedJobs.reduce((sum, job) => {
-            const sheets = job.sheets || 0;
-            const usage = job.usageLength || 0;
-            const totalUsage = sheets * usage;
-            return sum + (isNaN(totalUsage) ? 0 : totalUsage);
-        }, 0);
-        // 【Ver.2.17修正】NaN問題解決 - productionTime の安全な合計
-        const totalProductionTime = completedJobs.reduce((sum, job) => {
-            const prodTime = job.productionTime || job.processingTime || 0;
-            return sum + (isNaN(prodTime) ? 0 : prodTime);
-        }, 0);
+        const totalSheets = completedJobs.reduce((sum, job) => sum + job.sheets, 0);
+        const totalUsedMeters = completedJobs.reduce((sum, job) => sum + (job.sheets * job.usageLength), 0);
+        // 【Ver.2.10修正】完了したジョブの productionTime を正確に合計
+        const totalProductionTime = completedJobs.reduce((sum, job) => sum + job.productionTime, 0);
         
         const reportContent = `
             <div class="report-summary">
@@ -1576,35 +1312,13 @@ class LaminatorDashboard {
                 <h3>フィルムセッション履歴</h3>
                 <div class="history-list">
                     ${this.filmSessions.map((session, index) => `
-                        <div class="history-item" onclick="dashboard.toggleHistoryDetails('history-session-${session.id}')" style="cursor: pointer;">
+                        <div class="history-item">
                             <div class="history-header">
                                 <span>フィルム ${index + 1}</span>
                                 <span>${session.status === 'completed' ? '完了' : '進行中'}</span>
-                                <span class="toggle-indicator" id="toggle-history-session-${session.id}">▼</span>
                             </div>
                             <div class="history-details">
-                                ${session.jobs.length}ジョブ / ${session.jobs.reduce((sum, job) => {
-                                    const usage = job.usageLength || 0;
-                                    return sum + (isNaN(usage) ? 0 : usage);
-                                }, 0).toFixed(2)}m / ${session.jobs.reduce((sum, job) => {
-                                    const procTime = job.processingTime || job.productionTime || 0;
-                                    return sum + (isNaN(procTime) ? 0 : procTime);
-                                }, 0).toFixed(1)}分
-                            </div>
-                            <div class="history-job-details" id="history-session-${session.id}" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">
-                                <h4 style="font-size: 13px; margin-bottom: 8px; color: var(--primary-color);">ジョブ詳細</h4>
-                                ${session.jobs.map((job, jobIndex) => `
-                                    <div style="background: #f8f9fa; padding: 8px; margin: 4px 0; border-radius: 4px; font-size: 12px;">
-                                        <div style="font-weight: bold; color: ${job.completed ? '#27AE60' : '#6C757D'};">
-                                            ${job.completed ? '✓' : '○'} ${job.name || `ジョブ${jobIndex + 1}`}
-                                        </div>
-                                        <div style="color: #6C757D; margin-top: 2px;">
-                                            ${job.sheets || 0}枚 / ${((job.sheets || 0) * (job.usageLength || 0)).toFixed(2)}m / 
-                                            ${(job.processingTime || job.productionTime || 0).toFixed(1)}分
-                                            ${job.completed && job.completedAt ? ` / 完了: ${new Date(job.completedAt).toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'})}` : ''}
-                                        </div>
-                                    </div>
-                                `).join('')}
+                                ${session.jobs.length}ジョブ / ${session.jobs.reduce((sum, job) => sum + job.usageLength, 0).toFixed(2)}m / ${session.jobs.reduce((sum, job) => sum + job.processingTime, 0).toFixed(1)}分
                             </div>
                         </div>
                     `).join('')}
@@ -1612,67 +1326,13 @@ class LaminatorDashboard {
             </div>
         `;
         
-        // レポート内容をモーダルに挿入（既存の開始時刻・目標時刻・ボタンは保持）
-        const reportContentElement = document.getElementById('reportContent');
-        if (reportContentElement) {
-            // 既存の動的レポート部分を削除（IDで識別）
-            const existingReport = reportContentElement.querySelector('.report-summary');
-            if (existingReport) {
-                existingReport.remove();
-            }
-            const existingHistory = reportContentElement.querySelector('.report-history');
-            if (existingHistory) {
-                existingHistory.remove();
-            }
-            
-            // ボタンの直前にレポート内容を挿入
-            const buttonsDiv = reportContentElement.querySelector('div[style*="margin-top: 20px"]');
-            if (buttonsDiv) {
-                buttonsDiv.insertAdjacentHTML('beforebegin', reportContent);
-            } else {
-                // フォールバック: ボタンが見つからない場合は末尾に追加
-                reportContentElement.insertAdjacentHTML('beforeend', reportContent);
-            }
-        }
-        
+        document.getElementById('reportContent').innerHTML = reportContent;
         document.getElementById('reportModal').classList.add('active');
     }
 
     // レポート非表示
     hideReport() {
         document.getElementById('reportModal').classList.remove('active');
-    }
-
-    // セッション詳細の表示/非表示切り替え
-    toggleSessionDetails(sessionElementId) {
-        const element = document.getElementById(sessionElementId);
-        const toggleIndicator = document.getElementById(`toggle-${sessionElementId}`);
-        
-        if (element) {
-            if (element.style.display === 'none') {
-                element.style.display = 'block';
-                if (toggleIndicator) toggleIndicator.textContent = '▲';
-            } else {
-                element.style.display = 'none';
-                if (toggleIndicator) toggleIndicator.textContent = '▼';
-            }
-        }
-    }
-
-    // 履歴詳細の表示/非表示切り替え（独立化）
-    toggleHistoryDetails(historyElementId) {
-        const element = document.getElementById(historyElementId);
-        const toggleIndicator = document.getElementById(`toggle-${historyElementId}`);
-        
-        if (element) {
-            if (element.style.display === 'none') {
-                element.style.display = 'block';
-                if (toggleIndicator) toggleIndicator.textContent = '▲';
-            } else {
-                element.style.display = 'none';
-                if (toggleIndicator) toggleIndicator.textContent = '▼';
-            }
-        }
     }
 
     // 現在時刻更新
@@ -1686,157 +1346,6 @@ class LaminatorDashboard {
         document.getElementById('currentTime').textContent = timeString;
     }
 
-    // ★ CSV エクスポート機能 (Web/APK両対応)
-    async exportDataAsCsv() {
-        console.log('🔄 Starting CSV export...');
-        
-        try {
-            // CSVデータ生成
-            const csvData = this.generateCsvData();
-            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-            const fileName = `LamiOpe_Report_${timestamp}.csv`;
-            
-            // 環境判定してファイル保存
-            if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-                // APK環境: Documents/LamiOpe/ に保存
-                await this.saveToDocuments(csvData, fileName, 'text/csv');
-            } else {
-                // Web環境: ブラウザダウンロード
-                this.downloadFile(csvData, fileName, 'text/csv');
-            }
-            
-            console.log('✅ CSV export completed');
-        } catch (error) {
-            console.error('❌ CSV export failed:', error);
-            alert('CSVエクスポートに失敗しました: ' + error.message);
-        }
-    }
-
-    // ★ バックアップ機能 (Web/APK両対応)
-    async backupData() {
-        console.log('🔄 Starting backup...');
-        
-        try {
-            // バックアップデータ生成
-            const backupData = {
-                version: "5.0",
-                timestamp: new Date().toISOString(),
-                settings: this.settings,
-                filmSessions: this.filmSessions,
-                workStarted: this.workStarted,
-                workStartTime: this.workStartTime,
-                targetEndTime: this.targetEndTime,
-                extraTime: this.extraTime,
-                currentFilmSession: this.currentFilmSession
-            };
-            
-            const jsonString = JSON.stringify(backupData, null, 2);
-            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-            const fileName = `LamiOpe_Backup_${timestamp}.json`;
-            
-            // 環境判定してファイル保存
-            if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-                // APK環境: Documents/LamiOpe/ に保存
-                await this.saveToDocuments(jsonString, fileName, 'application/json');
-            } else {
-                // Web環境: ブラウザダウンロード
-                this.downloadFile(jsonString, fileName, 'application/json');
-            }
-            
-            console.log('✅ Backup completed');
-        } catch (error) {
-            console.error('❌ Backup failed:', error);
-            alert('バックアップに失敗しました: ' + error.message);
-        }
-    }
-
-    // ★ APK環境用: Documents/LamiOpe/ フォルダに保存
-    async saveToDocuments(content, fileName, mimeType) {
-        try {
-            // Capacitor Filesystem プラグインを使用
-            const { Filesystem, Directory } = window.Capacitor.Plugins;
-            
-            // LamiOpe フォルダ作成 (存在しない場合)
-            try {
-                await Filesystem.mkdir({
-                    path: 'LamiOpe',
-                    directory: Directory.Documents,
-                    recursive: true
-                });
-            } catch (mkdirError) {
-                // フォルダが既に存在する場合のエラーは無視
-                if (!mkdirError.message.includes('File exists')) {
-                    throw mkdirError;
-                }
-            }
-            
-            // ファイル保存
-            await Filesystem.writeFile({
-                path: `LamiOpe/${fileName}`,
-                data: content,
-                directory: Directory.Documents,
-                encoding: 'utf8'
-            });
-            
-            alert(`✅ ${fileName} を Documents/LamiOpe/ に保存しました`);
-            console.log(`✅ File saved to Documents/LamiOpe/${fileName}`);
-            
-        } catch (error) {
-            console.error('❌ APK save failed:', error);
-            alert(`❌ ファイル保存に失敗しました: ${error.message}`);
-            throw error;
-        }
-    }
-
-    // ★ Web環境用: ブラウザダウンロード
-    downloadFile(content, fileName, mimeType) {
-        const blob = new Blob([content], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        console.log(`✅ Web download triggered: ${fileName}`);
-    }
-
-    // ★ CSV データ生成
-    generateCsvData() {
-        const headers = [
-            'フィルムセッション',
-            'ジョブ名',
-            'ステータス',
-            '生産枚数',
-            '使用メーター',
-            '生産時間(分)',
-            '完了時刻',
-            'フィルム残量'
-        ];
-        
-        let csvContent = headers.join(',') + '\n';
-        
-        this.filmSessions.forEach((session, sessionIndex) => {
-            session.jobs.forEach((job, jobIndex) => {
-                const row = [
-                    `フィルム${sessionIndex + 1}`,
-                    job.name || `ジョブ${jobIndex + 1}`,
-                    job.completed ? '完了' : '進行中',
-                    job.sheets || 0,
-                    ((job.sheets || 0) * (job.usageLength || 0)).toFixed(2),
-                    (job.processingTime || job.productionTime || 0).toFixed(1),
-                    job.completedAt ? new Date(job.completedAt).toLocaleString('ja-JP') : '',
-                    session.filmRemaining.toFixed(1)
-                ];
-                csvContent += row.map(cell => `"${cell}"`).join(',') + '\n';
-            });
-        });
-        
-        return csvContent;
-    }
-
     // 終了時刻更新
     updateFinishTime() {
         if (!this.workStarted) {
@@ -1846,10 +1355,7 @@ class LaminatorDashboard {
         }
 
         const allJobs = this.filmSessions.flatMap(session => session.jobs);
-        const totalProcessingTime = allJobs.reduce((total, job) => {
-            const procTime = job.processingTime || job.productionTime || 0;
-            return total + (isNaN(procTime) ? 0 : procTime);
-        }, 0);
+        const totalProcessingTime = allJobs.reduce((total, job) => total + job.processingTime, 0);
         const totalTime = totalProcessingTime + this.extraTime + this.timeSettings.cleanupTime;
         
         // 開始時刻から終了時刻を計算
@@ -1897,105 +1403,6 @@ class LaminatorDashboard {
         // フィルム残量表示要素がない場合は何もしない（エラー回避）
     }
 
-    // CSV エクスポート機能 (Capacitor Filesystem対応版)
-    async exportDataAsCsv() {
-        const completedJobs = [];
-        this.filmSessions.forEach(session => {
-            session.jobs.forEach(job => {
-                if (job.completed) {
-                    const prodTime = job.productionTime || job.processingTime || 0;
-                    const usageLength = job.usageLength || 0;
-                    const sheets = job.sheets || 0;
-                    
-                    completedJobs.push({
-                        日時: new Date().toLocaleDateString('ja-JP'),
-                        ジョブ名: job.name || 'ジョブ',
-                        生産枚数: sheets,
-                        使用フィルム: `${(sheets * usageLength).toFixed(2)}m`,
-                        加工時間: `${(isNaN(prodTime) ? 0 : prodTime).toFixed(1)}分`,
-                        フィルムセッション: session.name || `セッション${session.id}`
-                    });
-                }
-            });
-        });
-
-        if (completedJobs.length === 0) {
-            alert('エクスポートする完了済みジョブがありません。');
-            return;
-        }
-
-        // CSV作成
-        const headers = Object.keys(completedJobs[0]);
-        const csvContent = [
-            '\uFEFF' + headers.join(','), // BOMを追加してExcelで正しく表示
-            ...completedJobs.map(job => headers.map(header => `"${job[header]}"`).join(','))
-        ].join('\n');
-
-        const filename = `laminator_report_${new Date().toISOString().split('T')[0]}.csv`;
-
-        try {
-            if (isCapacitorEnvironment && CapacitorFilesystem) {
-                // APK環境: Capacitor Filesystem API使用
-                console.log('🔄 Capacitor Filesystem APIでCSVエクスポート...');
-                
-                // Android 11+ スコープドストレージ対応: 権限確認とフォルダ作成
-                await ensureFsReady();
-                
-                await CapacitorFilesystem.writeFile({
-                    path: `LamiOpe/${filename}`,
-                    data: csvContent,
-                    directory: CapacitorDirectory.Documents,
-                    encoding: CapacitorEncoding.UTF8
-                });
-                
-                console.log('✅ CSV エクスポート完了:', completedJobs.length + '件');
-                this.showToast(`CSV を Documents/LamiOpe/${filename} に保存しました (${completedJobs.length}件)`, 'success');
-            } else {
-                // Web環境: Blob download fallback
-                console.log('🔄 Webブラウザ環境でCSVダウンロード...');
-                this.fallbackCsvDownload(csvContent, filename, completedJobs.length);
-            }
-        } catch (error) {
-            console.warn('❌ Filesystem保存失敗、fallbackを使用:', error);
-            this.showToast(`CSV APKエラー: ${error.message || error}`, 'error');
-            this.fallbackCsvDownload(csvContent, filename, completedJobs.length);
-        }
-    }
-
-    // Fallback: CSV Blob ダウンロード
-    fallbackCsvDownload(csvContent, filename, jobCount) {
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = filename;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        
-        setTimeout(() => {
-            link.click();
-            setTimeout(() => {
-                document.body.removeChild(link);
-                URL.revokeObjectURL(link.href);
-            }, 100);
-        }, 100);
-        
-        console.log('CSV エクスポート完了:', jobCount + '件');
-        alert(`CSV エクスポート完了: ${jobCount}件のジョブを保存しました`);
-    }
-
-    // 本日のジョブを消去
-    clearTodaysJobs() {
-        if (confirm('本日の全ジョブを消去しますか？この操作は元に戻せません。')) {
-            this.filmSessions = [];
-            this.currentFilmSession = null;
-            this.saveData();
-            this.renderJobList();
-            this.updateFinishTime();
-            console.log('本日のジョブを消去しました。');
-            alert('本日のジョブを消去しました。');
-        }
-    }
-
     // 入力フィールドクリア
     clearInputs() {
         document.getElementById('directSheets').value = '';
@@ -2024,8 +1431,8 @@ class LaminatorDashboard {
         });
     }
 
-    // データ保存 (Capacitor Storage対応版)
-    async saveData() {
+    // データ保存
+    saveData() {
         const data = {
             date: new Date().toDateString(),
             filmSessions: this.filmSessions,
@@ -2037,108 +1444,13 @@ class LaminatorDashboard {
             timeSettings: this.timeSettings
         };
         
-        const dataString = JSON.stringify(data);
-        const dataKey = 'laminator_dashboard_v3';
-        
-        console.log('🔄 データ保存開始...複数方式で試行');
-        
-        try {
-            // === 方式1: Capacitor Preferences API ===
-            if (isCapacitorEnvironment && CapacitorPreferences) {
-                console.log('🔄 方式1: Capacitor Preferences APIでデータ保存...');
-                
-                await CapacitorPreferences.set({
-                    key: dataKey,
-                    value: dataString
-                });
-                
-                // 保存確認のための読み戻しテスト
-                const verification = await CapacitorPreferences.get({ key: dataKey });
-                if (verification.value === dataString) {
-                    console.log('✅ 方式1成功: Capacitor Preferencesに正常保存完了');
-                    console.log(`📊 保存データサイズ: ${Math.round(dataString.length / 1024 * 100) / 100}KB`);
-                    return; // 成功時は終了
-                } else {
-                    throw new Error('Capacitor Preferences保存データの検証に失敗');
-                }
-            }
-            
-            // === 方式2: IndexedDB フォールバック ===
-            if (indexedDBSupported) {
-                console.log('🔄 方式2: IndexedDBでデータ保存...');
-                
-                await saveToIndexedDB(dataKey, dataString);
-                
-                // IndexedDB保存確認
-                const indexedDBVerification = await loadFromIndexedDB(dataKey);
-                if (indexedDBVerification === dataString) {
-                    console.log('✅ 方式2成功: IndexedDBに正常保存完了');
-                    console.log(`📊 保存データサイズ: ${Math.round(dataString.length / 1024 * 100) / 100}KB`);
-                    return; // 成功時は終了
-                } else {
-                    throw new Error('IndexedDB保存データの検証に失敗');
-                }
-            }
-            
-            // === 方式3: localStorage緊急フォールバック ===
-            console.log('🔄 方式3: localStorage緊急フォールバック...');
-            localStorage.setItem(dataKey, dataString);
-            
-            // localStorage保存確認
-            const localStorageVerification = localStorage.getItem(dataKey);
-            if (localStorageVerification === dataString) {
-                console.log('✅ 方式3成功: localStorageに正常保存完了');
-                console.log(`📊 保存データサイズ: ${Math.round(dataString.length / 1024 * 100) / 100}KB`);
-                return; // 成功時は終了
-            } else {
-                throw new Error('localStorage保存データの検証に失敗');
-            }
-            
-        } catch (error) {
-            console.error('❌ 全ての保存方式が失敗:', error);
-            this.showToast('データの保存に失敗しました。アプリを再起動してください。', 'error');
-            
-            // デバッグ情報の出力
-            console.error('🔍 デバッグ情報:');
-            console.error('- Capacitor環境:', isCapacitorEnvironment);
-            console.error('- CapacitorPreferences利用可能:', !!CapacitorPreferences);
-            console.error('- IndexedDBサポート:', indexedDBSupported);
-            console.error('- localStorage利用可能:', !!window.localStorage);
-            console.error('- 保存データサイズ:', dataString.length, 'バイト');
-        }
+        localStorage.setItem('laminator_dashboard_v3', JSON.stringify(data));
     }
 
-    // データ読み込み (Capacitor Preferences対応版)
-    async loadData() {
+    // データ読み込み
+    loadData() {
         try {
-            let rawData = null;
-            const dataKey = 'laminator_dashboard_v3';
-            
-            if (isCapacitorEnvironment && CapacitorPreferences) {
-                // APK環境: Capacitor Preferences API使用
-                console.log('🔄 Capacitor Preferences APIからデータ読み込み...');
-                
-                const result = await CapacitorPreferences.get({ key: dataKey });
-                rawData = result.value;
-                
-                if (rawData) {
-                    console.log('✅ Capacitor Preferencesからデータ読み込み成功');
-                    console.log(`📊 読み込みデータサイズ: ${Math.round(rawData.length / 1024 * 100) / 100}KB`);
-                } else {
-                    console.log('ℹ️ Capacitor Preferences: 保存データなし（初回起動）');
-                }
-            } else {
-                // Web環境: localStorage fallback
-                console.log('🔄 localStorage fallbackからデータ読み込み...');
-                rawData = localStorage.getItem(dataKey);
-                
-                if (rawData) {
-                    console.log('✅ localStorageからデータ読み込み成功');
-                } else {
-                    console.log('ℹ️ localStorage: 保存データなし（初回起動）');
-                }
-            }
-            
+            const rawData = localStorage.getItem('laminator_dashboard_v3');
             const data = rawData ? JSON.parse(rawData) : {};
             const today = new Date().toDateString();
             
@@ -2551,12 +1863,6 @@ class LaminatorDashboard {
         const usageLength = (paperLength - overlapWidth) / 1000; // メートル変換
         const processingTime = sheets * usageLength / processSpeed; // 分
         
-        // NaN安全性チェック
-        if (isNaN(usageLength) || isNaN(processingTime)) {
-            alert('計算エラーが発生しました。入力値を確認してください。');
-            return null;
-        }
-        
         // 妥当性チェック
         if (usageLength <= 0) {
             alert('用紙の長さは重なり幅より大きくしてください');
@@ -2690,71 +1996,39 @@ class LaminatorDashboard {
         }
     }
 
-    // データバックアップ機能 (Capacitor対応版)
-    async backupData() {
+    // データバックアップ機能
+    backupData() {
         try {
-            let data = null;
-            const dataKey = 'laminator_dashboard_v3';
-            
-            if (isCapacitorEnvironment && CapacitorPreferences) {
-                // APK環境: Capacitor Preferences使用
-                console.log('🔄 Capacitor Preferencesからバックアップデータ取得...');
-                const result = await CapacitorPreferences.get({ key: dataKey });
-                data = result.value;
-            } else {
-                // Web環境: localStorage使用
-                console.log('🔄 localStorageからバックアップデータ取得...');
-                data = localStorage.getItem(dataKey);
-            }
-            
+            const data = localStorage.getItem('laminator_dashboard_v3');
             if (!data) {
                 this.showToast('バックアップするデータがありません', 'warning');
                 return;
             }
 
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
             const today = new Date();
             const dateStr = today.getFullYear() + '-' + 
                 String(today.getMonth() + 1).padStart(2, '0') + '-' + 
                 String(today.getDate()).padStart(2, '0');
+            
             const filename = `lami-ope-backup-${dateStr}.json`;
-
-            if (isCapacitorEnvironment && CapacitorFilesystem) {
-                // APK環境: Capacitor Filesystem API使用
-                try {
-                    console.log('🔄 Capacitor Filesystem APIでファイル書き込み...');
-                    
-                    // Android 11+ スコープドストレージ対応: 権限確認とフォルダ作成
-                    await ensureFsReady();
-                    
-                    // デバッグ情報表示
-                    this.showToast(`デバッグ: Directory=${CapacitorDirectory?.Documents}, Encoding=${CapacitorEncoding?.UTF8}`, 'info');
-                    
-                    await CapacitorFilesystem.writeFile({
-                        path: `LamiOpe/${filename}`,
-                        data: data,
-                        directory: CapacitorDirectory.Documents,
-                        encoding: CapacitorEncoding.UTF8
-                    });
-                    
-                    console.log('✅ Capacitor Filesystemでバックアップ保存成功');
-                    this.showToast(`バックアップファイルをDocuments/LamiOpe/${filename}に保存しました`, 'success');
-                    
-                } catch (fsError) {
-                    console.warn('❌ Filesystem保存失敗、blob保存にfallback:', fsError);
-                    this.showToast(`APKエラー: ${fsError.message || fsError}`, 'error');
-                    this.fallbackBlobDownload(data, filename, 'application/json');
-                }
-            } else {
-                // Web環境またはfallback: blob保存
-                console.log('🔄 Webブラウザ環境でblob保存実行...');
-                this.fallbackBlobDownload(data, filename, 'application/json');
-            }
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            this.showToast('バックアップファイルをダウンロードしました', 'success');
         } catch (error) {
-            console.error('❌ バックアップエラー:', error);
+            console.error('バックアップエラー:', error);
             this.showToast('バックアップに失敗しました', 'error');
         }
     }
-
 
     // 復元ファイル選択をトリガー
     triggerRestore() {
@@ -2762,34 +2036,18 @@ class LaminatorDashboard {
         fileInput.click();
     }
 
-    // データ復元機能 (Capacitor Preferences対応版)
-    async restoreData(event) {
+    // データ復元機能
+    restoreData(event) {
         const file = event.target.files[0];
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = async (e) => {
+        reader.onload = (e) => {
             try {
                 const data = e.target.result;
                 JSON.parse(data); // 有効なJSONかチェック
-                const dataKey = 'laminator_dashboard_v3';
                 
-                if (isCapacitorEnvironment && CapacitorPreferences) {
-                    // APK環境: Capacitor Preferences使用
-                    console.log('🔄 Capacitor Preferencesに復元データ保存...');
-                    
-                    await CapacitorPreferences.set({
-                        key: dataKey,
-                        value: data
-                    });
-                    
-                    console.log('✅ Capacitor Preferencesに復元完了');
-                } else {
-                    // Web環境: localStorage使用
-                    console.log('🔄 localStorageに復元データ保存...');
-                    localStorage.setItem(dataKey, data);
-                    console.log('✅ localStorageに復元完了');
-                }
+                localStorage.setItem('laminator_dashboard_v3', data);
                 
                 this.showToast('復元が完了しました。ページを更新します。', 'success');
                 setTimeout(() => {
@@ -2806,299 +2064,13 @@ class LaminatorDashboard {
         // ファイル選択をリセット（同じファイルでも再選択可能にする）
         event.target.value = '';
     }
-
-    // CSV形式でデータをエクスポート (Capacitor対応版)
-    async exportDataAsCsv() {
-        try {
-            const csvData = this.generateCsvData();
-            if (!csvData) {
-                this.showToast('エクスポートするデータがありません', 'warning');
-                return;
-            }
-
-            const today = new Date();
-            const dateStr = today.getFullYear() + '-' + 
-                String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-                String(today.getDate()).padStart(2, '0');
-            const filename = `lami-ope-report-${dateStr}.csv`;
-
-            if (isCapacitorEnvironment && CapacitorFilesystem) {
-                // APK環境: Capacitor Filesystem API使用
-                try {
-                    console.log('🔄 Capacitor Filesystem APIでCSVファイル書き込み...');
-                    
-                    // Android 11+ スコープドストレージ対応: 権限確認とフォルダ作成
-                    await ensureFsReady();
-                    
-                    await CapacitorFilesystem.writeFile({
-                        path: `LamiOpe/${filename}`,
-                        data: csvData,
-                        directory: CapacitorDirectory.Documents,
-                        encoding: CapacitorEncoding.UTF8
-                    });
-                    
-                    console.log('✅ Capacitor FilesystemでCSV保存成功');
-                    this.showToast(`CSVファイルをDocuments/LamiOpe/${filename}に保存しました`, 'success');
-                    
-                } catch (fsError) {
-                    console.warn('❌ Filesystem保存失敗、blob保存にfallback:', fsError);
-                    this.showToast(`APKエラー: ${fsError.message || fsError}`, 'error');
-                    this.fallbackBlobDownload(csvData, filename, 'text/csv');
-                }
-            } else {
-                // Web環境またはfallback: blob保存
-                console.log('🔄 Webブラウザ環境でCSVファイル保存実行...');
-                this.fallbackBlobDownload(csvData, filename, 'text/csv');
-            }
-        } catch (error) {
-            console.error('❌ CSVエクスポートエラー:', error);
-            this.showToast('CSVエクスポートに失敗しました', 'error');
-        }
-    }
-
-    // CSVデータ生成
-    generateCsvData() {
-        if (!this.filmSessions || this.filmSessions.length === 0) {
-            return null;
-        }
-
-        const csvRows = [];
-        
-        // CSVヘッダー
-        csvRows.push('日付,セッションID,フィルム容量(m),使用量(m),残量(m),ジョブ数,ジョブ名,用紙長(mm),重なり幅(mm),枚数,使用長(m),処理時間(分),完了状況,開始時刻,完了時刻');
-        
-        this.filmSessions.forEach(session => {
-            const sessionDate = new Date(session.startTime).toLocaleDateString('ja-JP');
-            const sessionId = session.id;
-            const filmCapacity = session.filmCapacity || 0;
-            const filmUsed = session.filmUsed || 0;
-            const filmRemaining = session.filmRemaining || 0;
-            const jobCount = session.jobs?.length || 0;
-            
-            if (session.jobs && session.jobs.length > 0) {
-                session.jobs.forEach(job => {
-                    const jobName = `Job-${job.id}`;
-                    const paperLength = job.paperLength || 0;
-                    const overlapWidth = job.overlapWidth || 0;
-                    const sheets = job.sheets || 0;
-                    const usageLength = job.usageLength || 0;
-                    const processingTime = job.processingTime || 0;
-                    const completed = job.completed ? '完了' : '未完了';
-                    const startTime = job.timestamp ? new Date(job.timestamp).toLocaleTimeString('ja-JP') : '';
-                    const completedAt = job.completedAt ? new Date(job.completedAt).toLocaleTimeString('ja-JP') : '';
-                    
-                    csvRows.push([
-                        sessionDate,
-                        sessionId,
-                        filmCapacity,
-                        filmUsed,
-                        filmRemaining,
-                        jobCount,
-                        jobName,
-                        paperLength,
-                        overlapWidth,
-                        sheets,
-                        usageLength,
-                        processingTime,
-                        completed,
-                        startTime,
-                        completedAt
-                    ].join(','));
-                });
-            } else {
-                // ジョブがないセッション
-                csvRows.push([
-                    sessionDate,
-                    sessionId,
-                    filmCapacity,
-                    filmUsed,
-                    filmRemaining,
-                    jobCount,
-                    'なし',
-                    '', '', '', '', '', '', '', ''
-                ].join(','));
-            }
-        });
-        
-        return csvRows.join('\n');
-    }
-
-    // Fallback: Blobダウンロード（強化版）
-    fallbackBlobDownload(data, filename, contentType = 'application/json') {
-        const blob = new Blob([data], { type: contentType });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        
-        setTimeout(() => {
-            a.click();
-            setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }, 100);
-        }, 100);
-        
-        this.showToast(`${contentType.includes('csv') ? 'CSV' : 'バックアップ'}ファイルをダウンロードしました`, 'success');
-    }
-}
-
-// Capacitor プラグイン設定
-let CapacitorPreferences, CapacitorFilesystem, CapacitorDirectory, CapacitorEncoding;
-let isCapacitorEnvironment = false;
-
-// Capacitor環境判定とプラグイン初期化（修正版）
-async function initializeCapacitor() {
-    console.log('🔄 Capacitor環境判定を開始...');
-    console.log('🔍 環境情報:', {
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-        hasCapacitor: typeof window.Capacitor !== 'undefined',
-        locationProtocol: window.location.protocol
-    });
-    
-    try {
-        // ✅ 正しいネイティブプラットフォーム判定（関数として呼び出し）
-        const isNative = !!(window.Capacitor?.isNativePlatform?.());
-        
-        if (isNative) {
-            console.log('✅ ネイティブプラットフォーム環境を検出');
-            isCapacitorEnvironment = true;
-            
-            // APK環境ではプラグインが既にバンドル済み
-            try {
-                console.log('🔄 バンドル済みCapacitorプラグイン使用...');
-                
-                // APK環境では window.Capacitor 経由でプラグインにアクセス
-                if (window.Capacitor?.Plugins?.Preferences) {
-                    CapacitorPreferences = window.Capacitor.Plugins.Preferences;
-                    console.log('✅ バンドル済み Preferences プラグイン取得成功');
-                } else {
-                    throw new Error('Preferences プラグインがバンドルされていません');
-                }
-                
-                if (window.Capacitor?.Plugins?.Filesystem) {
-                    CapacitorFilesystem = window.Capacitor.Plugins.Filesystem;
-                    // Directory と Encoding も Capacitor から取得
-                    CapacitorDirectory = window.Capacitor.Directory || {
-                        Documents: 'DOCUMENTS',
-                        Data: 'DATA',
-                        Cache: 'CACHE',
-                        External: 'EXTERNAL',
-                        ExternalStorage: 'EXTERNAL_STORAGE'
-                    };
-                    CapacitorEncoding = window.Capacitor.Encoding || {
-                        UTF8: 'utf8',
-                        ASCII: 'ascii',
-                        UTF16: 'utf16'
-                    };
-                    console.log('✅ バンドル済み Filesystem プラグイン取得成功');
-                } else {
-                    throw new Error('Filesystem プラグインがバンドルされていません');
-                }
-                
-                console.log('✅ 全Capacitorプラグイン初期化成功（バンドル方式）');
-                
-            } catch (pluginError) {
-                console.error('❌ バンドル済みプラグイン取得エラー:', pluginError);
-                console.log('🔄 CDN動的インポートにフォールバック...');
-                
-                // CDN動的インポートをフォールバックとして試行
-                try {
-                    const { Preferences } = await import('https://unpkg.com/@capacitor/preferences@7/dist/esm/index.js');
-                    const { Filesystem, Directory, Encoding } = await import('https://unpkg.com/@capacitor/filesystem@7/dist/esm/index.js');
-                    
-                    CapacitorPreferences = Preferences;
-                    CapacitorFilesystem = Filesystem;
-                    CapacitorDirectory = Directory;
-                    CapacitorEncoding = Encoding;
-                    
-                    console.log('✅ CDN動的インポート成功');
-                } catch (cdnError) {
-                    console.error('❌ CDN動的インポートも失敗:', cdnError);
-                    isCapacitorEnvironment = false;
-                }
-            }
-        } else {
-            isCapacitorEnvironment = false;
-            console.log('🌐 Web環境として動作');
-        }
-    } catch (error) {
-        console.error('❌ Capacitor初期化中の予期しないエラー:', error);
-        isCapacitorEnvironment = false;
-    }
-    
-    console.log(`📱 最終判定: ${isCapacitorEnvironment ? 'Capacitor APK環境' : 'Web環境'}`);
-}
-
-// Android安全化：権限チェックとフォルダ作成
-async function ensureFsReady() {
-    if (!CapacitorFilesystem || !isCapacitorEnvironment) return;
-
-    try {
-        // 権限チェック・要求
-        if (CapacitorFilesystem.checkPermissions) {
-            const status = await CapacitorFilesystem.checkPermissions();
-            if (status?.publicStorage && status.publicStorage !== 'granted') {
-                console.log('🔄 ファイルシステム権限を要求中...');
-                await CapacitorFilesystem.requestPermissions();
-            }
-        }
-        
-        // LamiOpeフォルダ作成（スコープドストレージ対応）
-        try {
-            await CapacitorFilesystem.mkdir({
-                path: 'LamiOpe',
-                directory: CapacitorDirectory.Documents,
-                recursive: true // 重要：親フォルダも作成
-            });
-            console.log('✅ LamiOpeフォルダ準備完了');
-        } catch (mkdirError) {
-            if (!mkdirError.message?.includes('exists')) {
-                console.warn('📁 フォルダ作成で警告（既存の可能性）:', mkdirError);
-            }
-        }
-    } catch (error) {
-        console.warn('⚠️ ファイルシステム準備で警告:', error);
-    }
-}
-
-// 汎用的なBlobダウンロード機能（Web環境用）
-function downloadBlob(data, filename, contentType) {
-    const blob = new Blob([data], { type: contentType });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    
-    setTimeout(() => {
-        a.click();
-        setTimeout(() => {
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }, 100);
-    }, 50);
 }
 
 // アプリケーション初期化
 let dashboard;
 
-document.addEventListener('DOMContentLoaded', async () => {
-    // ★ 最初にCapacitor環境を初期化
-    try {
-        await initializeCapacitor();
-    } catch (error) {
-        console.warn('Capacitor初期化エラー:', error);
-    }
-    
+document.addEventListener('DOMContentLoaded', () => {
     dashboard = new LaminatorDashboard();
-    window.dashboard = dashboard;  // HTMLから呼び出し可能にする
     
     // ヘッダーボタンのイベントリスナー設定（Ver.2.5 バグ修正）
     const logTrigger = document.getElementById('log-page-trigger-icon');
@@ -3115,51 +2087,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             dashboard.showSettings();
         });
         console.log('Settings button event listener added');
-    }
-    
-    // ★ バックアップ・復元・CSVエクスポートのイベントリスナー設定
-    const backupBtn = document.getElementById('backup-data-btn');
-    if (backupBtn) {
-        backupBtn.addEventListener('click', () => {
-            console.log('🔄 Backup button clicked');
-            if (dashboard && dashboard.backupData) {
-                console.log('🔄 Calling dashboard.backupData()');
-                dashboard.backupData();
-            } else {
-                console.error('❌ dashboard.backupData not found');
-            }
-        });
-        console.log('✅ Backup button event listener added');
-    } else {
-        console.error('❌ backup-data-btn element not found');
-    }
-
-    const restoreTriggerBtn = document.getElementById('restore-data-btn');
-    if (restoreTriggerBtn) {
-        restoreTriggerBtn.addEventListener('click', () => dashboard.triggerRestore());
-        console.log('✅ Restore trigger button event listener added');
-    }
-
-    const restoreFileInput = document.getElementById('restore-file-input');
-    if (restoreFileInput) {
-        restoreFileInput.addEventListener('change', (event) => dashboard.restoreData(event));
-        console.log('✅ Restore file input event listener added');
-    }
-
-    const exportCsvBtn = document.getElementById('exportCsvBtn');
-    if (exportCsvBtn) {
-        exportCsvBtn.addEventListener('click', () => {
-            console.log('🔄 CSV export button clicked');
-            if (dashboard && dashboard.exportDataAsCsv) {
-                console.log('🔄 Calling dashboard.exportDataAsCsv()');
-                dashboard.exportDataAsCsv();
-            } else {
-                console.error('❌ dashboard.exportDataAsCsv not found');
-            }
-        });
-        console.log('✅ CSV export button event listener added');
-    } else {
-        console.error('❌ exportCsvBtn element not found');
     }
     
     // PWA対応
