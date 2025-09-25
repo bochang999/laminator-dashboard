@@ -2,26 +2,13 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ラミオペ・ダッシュボード</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2C3E50">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    
-    <!-- Capacitor プラグイン読み込み (APK環境での動作確保) -->
-    <script>
-        // APK環境でのCapacitor検出
-        if (typeof window.Capacitor !== 'undefined') {
-            // ネイティブ環境では自動的に利用可能
-            console.log('✅ ネイティブCapacitor環境検出');
-        } else {
-            // Web環境でのみCDN読み込み
-            console.log('🌐 Web環境でCapacitor CDN読み込み');
-            document.write('<script src="https://unpkg.com/@capacitor/core@7/dist/capacitor.js"><\/script>');
-        }
-    </script>
 </head>
 <body>
     <div class="app-container">
@@ -86,7 +73,7 @@
                 <div id="jobListContainer" class="job-list-container">
                     <div class="empty-state">
                         まだジョブが登録されていません<br>
-                        「+ 新しいフィルムでジョブを開始」ボタンからジョブを追加してください
+                        上記のフォームからジョブを追加してください
                     </div>
                 </div>
             </section>
@@ -138,9 +125,9 @@
                     <div class="settings-section">
                         <h4>データ管理</h4>
                         <div class="form-group">
-                            <button class="btn btn-primary" id="backup-data-btn">📤 進捗をバックアップ</button>
-                            <button class="btn btn-secondary" id="restore-data-btn">📥 バックアップから復元</button>
-                            <input type="file" id="restore-file-input" accept=".json" style="display: none;">
+                            <button class="btn btn-primary" id="backup-data-btn" onclick="dashboard.backupData()">📤 進捗をバックアップ</button>
+                            <button class="btn btn-secondary" id="restore-data-btn" onclick="dashboard.triggerRestore()">📥 バックアップから復元</button>
+                            <input type="file" id="restore-file-input" accept=".json" style="display: none;" onchange="dashboard.restoreData(event)">
                         </div>
                     </div>
                     
@@ -159,26 +146,7 @@
                     <h3>📊 本日の作業レポート</h3>
                     <button class="modal-close" onclick="dashboard.hideReport()">&times;</button>
                 </div>
-                <div class="modal-body" id="reportContent">
-                    <div class="report-time-display">
-                        <div class="report-time-item">
-                            <div class="time-label">開始時刻</div>
-                            <div class="time-value" id="reportStartTime">--:--</div>
-                            <div class="time-action">業務開始時刻</div>
-                        </div>
-                        
-                        <div class="report-time-item">
-                            <div class="time-label">目標時刻</div>
-                            <div class="time-value" id="reportTargetTime">--:--</div>
-                            <div class="time-action">定時/残業設定</div>
-                        </div>
-                    </div>
-                    
-                    <div style="margin-top: 20px;">
-                        <button id="exportCsvBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">📋 業務記録をCSV保存</button>
-                        <button id="clearJobsBtn" class="btn btn-danger" style="width: 100%;">🗑️ 本日のジョブを消去</button>
-                    </div>
-                </div>
+                <div class="modal-body" id="reportContent"></div>
             </div>
         </div>
 
@@ -198,39 +166,12 @@
     </div>
     
     <footer style="text-align: center; padding: 10px; border-top: 1px solid #ccc; font-size: 12px; color: #888;">
-        Ver. 6.9 - 更新エラー修正版（GitHub Secrets署名統合）
+        Ver. 2.16
     </footer>
 
+    <!-- BOC-108: File-based Recipe Data System -->
+    <script src="recipeDataManager.js"></script>
     <script src="script.js"></script>
-    
-    <!-- APK Status Bar初期化 -->
-    <script>
-        // APK環境でのStatus Bar設定
-        document.addEventListener('DOMContentLoaded', async function() {
-            if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-                try {
-                    console.log('🔧 APK Status Bar初期化開始');
-                    
-                    // Status Barプラグインが利用可能な場合のみ実行
-                    if (window.Capacitor.Plugins.StatusBar) {
-                        await window.Capacitor.Plugins.StatusBar.setStyle({
-                            style: 'DARK'
-                        });
-                        await window.Capacitor.Plugins.StatusBar.setBackgroundColor({
-                            color: '#2C3E50'
-                        });
-                        await window.Capacitor.Plugins.StatusBar.setOverlaysWebView({
-                            overlay: false
-                        });
-                        console.log('✅ APK Status Bar設定完了');
-                    }
-                } catch (error) {
-                    console.log('⚠️ Status Bar設定失敗:', error);
-                }
-            }
-        });
-    </script>
-    
     <!-- テストスクリプト（開発時のみ有効化） -->
     <!-- <script src="test-v3.js"></script> -->
 </body>
